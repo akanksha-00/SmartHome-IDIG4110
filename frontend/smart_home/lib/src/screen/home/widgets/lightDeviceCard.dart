@@ -6,13 +6,17 @@ class LightDeviceCard extends StatefulWidget {
     required this.title,
     required this.subtitle,
     required this.initialIsOn,
-    required this.initialValue,
+    required this.brightness,
+    this.onPowerChanged,
+    this.onBrightnessChanged,
   });
 
   final String title;
   final String subtitle;
   final bool initialIsOn;
-  final double initialValue;
+  final double brightness;
+  final ValueChanged<bool>? onPowerChanged;
+  final ValueChanged<double>? onBrightnessChanged;
 
   @override
   State<LightDeviceCard> createState() => _LightDeviceCardState();
@@ -26,7 +30,7 @@ class _LightDeviceCardState extends State<LightDeviceCard> {
   void initState() {
     super.initState();
     _isLightOn = widget.initialIsOn;
-    _brightness = widget.initialValue;
+    _brightness = widget.brightness;
   }
 
   @override
@@ -49,6 +53,7 @@ class _LightDeviceCardState extends State<LightDeviceCard> {
                 setState(() {
                   _isLightOn = value;
                 });
+                widget.onPowerChanged?.call(value);
               },
             ),
           ),
@@ -62,6 +67,7 @@ class _LightDeviceCardState extends State<LightDeviceCard> {
                           setState(() {
                             _brightness = value;
                           });
+                          widget.onBrightnessChanged?.call(value);
                         }
                       : null,
                 ),

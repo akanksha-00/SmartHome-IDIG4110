@@ -6,12 +6,16 @@ class FanDeviceCard extends StatefulWidget {
       required this.title,
       required this.subtitle,
       required this.initialIsOn,
-      required this.initialSpeed});
+      required this.speed,
+      this.onPowerChanged,
+      this.onSpeedChanged});
 
   final String title;
   final String subtitle;
   final bool initialIsOn;
-  final int initialSpeed;
+  final int speed;
+  final ValueChanged<bool>? onPowerChanged;
+  final ValueChanged<int>? onSpeedChanged;
 
   @override
   State<FanDeviceCard> createState() => _FanDeviceCardState();
@@ -25,7 +29,7 @@ class _FanDeviceCardState extends State<FanDeviceCard> {
   void initState() {
     super.initState();
     _isFanOn = widget.initialIsOn;
-    _speed = widget.initialSpeed;
+    _speed = widget.speed;
   }
 
   @override
@@ -49,6 +53,7 @@ class _FanDeviceCardState extends State<FanDeviceCard> {
                 setState(() {
                   _isFanOn = value;
                 });
+                widget.onPowerChanged?.call(value);
               },
             ),
           ),
@@ -76,6 +81,7 @@ class _FanDeviceCardState extends State<FanDeviceCard> {
                       setState(() {
                         _speed = selection.first;
                       });
+                      widget.onSpeedChanged?.call(selection.first);
                     }
                   : null,
             ),

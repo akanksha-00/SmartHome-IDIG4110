@@ -5,11 +5,13 @@ class SmartPlugDeviceCard extends StatefulWidget {
       {super.key,
       required this.title,
       required this.subtitle,
-      required this.initialIsOn});
+      required this.initialIsOn,
+      this.onPowerChanged});
 
   final String title;
   final String subtitle;
   final bool initialIsOn;
+  final ValueChanged<bool>? onPowerChanged;
 
   @override
   State<SmartPlugDeviceCard> createState() => _SmartPlugDeviceCardState();
@@ -41,6 +43,7 @@ class _SmartPlugDeviceCardState extends State<SmartPlugDeviceCard> {
             setState(() {
               _isPlugOn = value;
             });
+            widget.onPowerChanged?.call(value);
           }),
     ));
   }

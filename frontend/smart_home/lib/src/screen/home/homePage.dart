@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/dummyData/devicesData.dart';
+import 'package:smart_home/src/models/devices/fanDeviceModel.dart';
+import 'package:smart_home/src/models/devices/lightDeviceModel.dart';
+import 'package:smart_home/src/models/devices/smartDeviceModel.dart';
+import 'package:smart_home/src/models/devices/smartPlugDeviceModel.dart';
 import 'package:smart_home/src/screen/home/widgets/fanDeviceCard.dart';
 import 'package:smart_home/src/screen/home/widgets/lightDeviceCard.dart';
 import 'package:smart_home/src/screen/home/widgets/smartPlugDeviceCard.dart';
@@ -11,8 +16,63 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  bool _isLightOn = true;
-  double _brightness = 0.5;
+  String _selectedDeviceCetegory = 'All';
+  final List<SmartDeviceModel> devices = createSmartDevices();
+
+  Widget _buildDeviceCard(SmartDeviceModel device) {
+    if (device is LightDeviceModel) {
+      return LightDeviceCard(
+        key: ValueKey(device.id),
+        title: device.title,
+        subtitle: device.subtitle,
+        initialIsOn: device.isOn,
+        brightness: device.brightness,
+        onPowerChanged: (isOn) {
+          setState(() {
+            device.isOn = isOn;
+          });
+        },
+        onBrightnessChanged: (brightness) {
+          setState(() {
+            device.brightness = brightness;
+          });
+        },
+      );
+    }
+    if (device is FanDeviceModel) {
+      return FanDeviceCard(
+        key: ValueKey(device.id),
+        title: device.title,
+        subtitle: device.subtitle,
+        initialIsOn: device.isOn,
+        speed: device.speed,
+        onPowerChanged: (isOn) {
+          setState(() {
+            device.isOn = isOn;
+          });
+        },
+        onSpeedChanged: (speed) {
+          setState(() {
+            device.speed = speed;
+          });
+        },
+      );
+    }
+    if (device is SmartPlugDeviceModel) {
+      return SmartPlugDeviceCard(
+        key: ValueKey(device.id),
+        title: device.title,
+        subtitle: device.subtitle,
+        initialIsOn: device.isOn,
+        onPowerChanged: (isOn) {
+          setState(() {
+            device.isOn = isOn;
+          });
+        },
+      );
+    }
+    throw UnsupportedError('Unsupported device type');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,90 +188,41 @@ class _HomePageState extends State<HomePage> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    Chip(
-                      label: const Text('All 8'),
-                      backgroundColor: Theme.of(context).colorScheme.primary,
-                      labelStyle: const TextStyle(color: Colors.black),
-                      side: BorderSide.none,
-                    ),
-                    const Chip(
-                      label: Text('Lights'),
-                    ),
-                    const Chip(
-                      label: Text('Fans'),
-                    ),
-                    const Chip(
-                      label: Text('Plugs'),
-                    ),
+                    for (final category in ['All', 'Lights', 'Fans', 'Plugs'])
+                      ChoiceChip(
+                        label: Text(category),
+                        selected: _selectedDeviceCetegory == category,
+                        showCheckmark: false,
+                        selectedColor: Theme.of(context).colorScheme.primary,
+                        labelStyle: TextStyle(
+                          color: _selectedDeviceCetegory == category
+                              ? Colors.black
+                              : null,
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _selectedDeviceCetegory = category;
+                            });
+                          }
+                        },
+                      ),
                   ],
                 ),
                 const SizedBox(
                   height: 16,
                 ),
                 Expanded(
-                  child: ListView(
-                    children: const [
-                      LightDeviceCard(
-                        title: 'Ceiling Light 1',
-                        subtitle: 'Above sofa',
-                        initialIsOn: false,
-                        initialValue: 0.0,
-                      ),
-                      SizedBox(
-                        height: 12,
-                      ),
-                      LightDeviceCard(
-                        title: 'Ceiling Light 2',
-                        subtitle: 'Above dining table',
-                        initialIsOn: false,
-                        initialValue: 0.0,
-                      ),
-                      SizedBox(
-                        height: 12,
-                      ),
-                      LightDeviceCard(
-                        title: 'Ceiling Light 3',
-                        subtitle: 'Above entrance',
-                        initialIsOn: false,
-                        initialValue: 0.0,
-                      ),
-                      SizedBox(
-                        height: 12,
-                      ),
-                      FanDeviceCard(
-                        title: 'Ceiling Fan 1',
-                        subtitle: 'Sofa area',
-                        initialIsOn: false,
-                        initialSpeed: 2,
-                      ),
-                      SizedBox(
-                        height: 12,
-                      ),
-                      FanDeviceCard(
-                        title: 'Ceiling Fan 2',
-                        subtitle: 'Dining area',
-                        initialIsOn: false,
-                        initialSpeed: 1,
-                      ),
-                      SizedBox(
-                        height: 12,
-                      ),
-                      SmartPlugDeviceCard(
-                        title: 'TV plug',
-                        subtitle: 'TV wall',
-                        initialIsOn: false,
-                      ),
-                      SizedBox(
-                        height: 12,
-                      ),
-                      SmartPlugDeviceCard(
-                        title: 'Speaker plug',
-                        subtitle: 'TV wall',
-                        initialIsOn: false,
-                      )
-                    ],
+                  child: ListView.separated(
+                    itemCount: devices.length,
+                    itemBuilder: (context, index) {
+                      return _buildDeviceCard(devices[index]);
+                    },
+                    separatorBuilder: (content, index) => const SizedBox(
+                      height: 12,
+                    ),
                   ),
-                )
+                ),
               ],
             ),
           ),
