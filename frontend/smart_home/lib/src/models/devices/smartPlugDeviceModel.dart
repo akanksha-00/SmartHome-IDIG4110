@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'smartDeviceModel.dart';
 
 class SmartPlugDeviceModel extends SmartDeviceModel {

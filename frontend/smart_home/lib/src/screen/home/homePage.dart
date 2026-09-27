@@ -74,6 +74,10 @@ class _HomePageState extends State<HomePage> {
     throw UnsupportedError('Unsupported device type');
   }
 
+  int get _activeDevicesCount {
+    return (devices.where((device) => device.isOn)).length;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -163,9 +167,9 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  '8 devices · 5 on',
-                  style: TextStyle(
+                Text(
+                  '${devices.length} devices · $_activeDevicesCount on',
+                  style: const TextStyle(
                     color: Colors.grey,
                   ),
                 ),
