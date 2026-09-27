@@ -78,8 +78,24 @@ class _HomePageState extends State<HomePage> {
     return (devices.where((device) => device.isOn)).length;
   }
 
+  List<SmartDeviceModel> get _filteredDevices {
+    return devices.where((device) {
+      switch (_selectedDeviceCetegory) {
+        case 'Lights':
+          return device is LightDeviceModel;
+        case 'Fans':
+          return device is FanDeviceModel;
+        case 'Plugs':
+          return device is SmartPlugDeviceModel;
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final visibleDevices = _filteredDevices;
     return Row(
       children: [
         const Expanded(
@@ -218,9 +234,9 @@ class _HomePageState extends State<HomePage> {
                 ),
                 Expanded(
                   child: ListView.separated(
-                    itemCount: devices.length,
+                    itemCount: visibleDevices.length,
                     itemBuilder: (context, index) {
-                      return _buildDeviceCard(devices[index]);
+                      return _buildDeviceCard(visibleDevices[index]);
                     },
                     separatorBuilder: (content, index) => const SizedBox(
                       height: 12,
