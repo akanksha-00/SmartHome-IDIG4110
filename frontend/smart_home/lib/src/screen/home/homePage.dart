@@ -5,6 +5,7 @@ import 'package:smart_home/src/models/devices/fanDeviceModel.dart';
 import 'package:smart_home/src/models/devices/lightDeviceModel.dart';
 import 'package:smart_home/src/models/devices/smartDeviceModel.dart';
 import 'package:smart_home/src/models/devices/smartPlugDeviceModel.dart';
+import 'package:smart_home/src/screen/home/widgets/addDeviceDialog.dart';
 import 'package:smart_home/src/screen/home/widgets/fanDeviceCard.dart';
 import 'package:smart_home/src/screen/home/widgets/lightDeviceCard.dart';
 import 'package:smart_home/src/screen/home/widgets/smartPlugDeviceCard.dart';
@@ -192,7 +193,18 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: () async {
+                        final newDevice = await showDialog<SmartDeviceModel>(
+                          context: context,
+                          builder: (context) => const AddDeviceDialog(),
+                        );
+                        if (!mounted || newDevice == null) {
+                          return;
+                        }
+                        setState(() {
+                          devices.add(newDevice);
+                        });
+                      },
                       icon: const Icon(Icons.add, size: 20),
                       label: const Text(
                         'Add Device',
