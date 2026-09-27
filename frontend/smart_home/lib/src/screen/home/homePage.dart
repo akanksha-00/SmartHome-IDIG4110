@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_home/src/dummyData/devicesData.dart';
 import 'package:smart_home/src/models/devices/fanDeviceModel.dart';
@@ -105,6 +106,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final visibleDevices = _filteredDevices;
+
     return Row(
       children: [
         const Expanded(
@@ -224,7 +226,9 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     for (final category in ['All', 'Lights', 'Fans', 'Plugs'])
                       ChoiceChip(
-                        label: Text(category),
+                        label: Text(_selectedDeviceCetegory == category
+                            ? '$category  ${visibleDevices.length}'
+                            : category),
                         selected: _selectedDeviceCetegory == category,
                         showCheckmark: false,
                         selectedColor: Theme.of(context).colorScheme.primary,
