@@ -17,6 +17,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String _selectedDeviceCetegory = 'All';
+  String _searchquery = '';
   final List<SmartDeviceModel> devices = createSmartDevices();
 
   Widget _buildDeviceCard(SmartDeviceModel device) {
@@ -79,7 +80,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<SmartDeviceModel> get _filteredDevices {
+    final query = _searchquery.trim().toLowerCase();
     return devices.where((device) {
+      final matchesSearch = device.title.toLowerCase().contains(query) ||
+          device.subtitle.toLowerCase().contains(query);
+
+      if (!matchesSearch) {
+        return false;
+      }
+
       switch (_selectedDeviceCetegory) {
         case 'Lights':
           return device is LightDeviceModel;
@@ -202,6 +211,11 @@ class _HomePageState extends State<HomePage> {
                       vertical: 14,
                     ),
                   ),
+                  onChanged: (value) {
+                    setState(() {
+                      _searchquery = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
                 Wrap(
@@ -233,15 +247,24 @@ class _HomePageState extends State<HomePage> {
                   height: 16,
                 ),
                 Expanded(
-                  child: ListView.separated(
-                    itemCount: visibleDevices.length,
-                    itemBuilder: (context, index) {
-                      return _buildDeviceCard(visibleDevices[index]);
-                    },
-                    separatorBuilder: (content, index) => const SizedBox(
-                      height: 12,
-                    ),
-                  ),
+                  child: visibleDevices.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No devices to show',
+                            style: TextStyle(
+                              color: Colors.grey,
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: visibleDevices.length,
+                          itemBuilder: (context, index) {
+                            return _buildDeviceCard(visibleDevices[index]);
+                          },
+                          separatorBuilder: (content, index) => const SizedBox(
+                            height: 12,
+                          ),
+                        ),
                 ),
               ],
             ),
