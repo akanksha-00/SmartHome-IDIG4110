@@ -19,7 +19,14 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String _selectedDeviceCetegory = 'All';
   String _searchquery = '';
+  final TextEditingController _searchController = TextEditingController();
   final List<SmartDeviceModel> devices = createSmartDevices();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Widget _buildDeviceCard(SmartDeviceModel device) {
     if (device is LightDeviceModel) {
@@ -212,7 +219,22 @@ class _HomePageState extends State<HomePage> {
                       horizontal: 16,
                       vertical: 14,
                     ),
+                    suffixIcon: _searchquery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.close),
+                            tooltip: 'Clear Search',
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(
+                                () {
+                                  _searchquery = '';
+                                },
+                              );
+                            },
+                          )
+                        : null,
                   ),
+                  controller: _searchController,
                   onChanged: (value) {
                     setState(() {
                       _searchquery = value;
