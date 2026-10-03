@@ -7,6 +7,7 @@ import 'package:smart_home/src/models/devices/smartDeviceModel.dart';
 import 'package:smart_home/src/models/devices/smartPlugDeviceModel.dart';
 import 'package:smart_home/src/screen/home/widgets/addDeviceDialog.dart';
 import 'package:smart_home/src/screen/home/widgets/fanDeviceCard.dart';
+import 'package:smart_home/src/screen/home/widgets/floorPlanView.dart';
 import 'package:smart_home/src/screen/home/widgets/lightDeviceCard.dart';
 import 'package:smart_home/src/screen/home/widgets/smartPlugDeviceCard.dart';
 
@@ -162,9 +163,7 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 Expanded(
-                  child: Center(
-                    child: Text('Floor Plan'),
-                  ),
+                  child: FloorPlanView(),
                 ),
               ],
             ),
