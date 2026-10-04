@@ -9,6 +9,7 @@ List<SmartDeviceModel> createSmartDevices() {
       id: 'light-1',
       title: 'Ceiling Light 1',
       subtitle: 'Above sofa',
+      roomId: 'bedroom1',
     ),
     LightDeviceModel(
       id: 'light-2',

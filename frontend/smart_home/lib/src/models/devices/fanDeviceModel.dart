@@ -6,6 +6,7 @@ class FanDeviceModel extends SmartDeviceModel {
     required super.title,
     required super.subtitle,
     super.isOn = false,
+    super.roomId,
     this.speed = 1,
   });
 

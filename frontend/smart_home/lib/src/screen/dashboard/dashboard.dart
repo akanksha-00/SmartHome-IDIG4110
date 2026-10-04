@@ -66,21 +66,6 @@ class _DashboardState extends State<Dashboard> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.circle, color: Colors.green, size: 10),
-                    SizedBox(width: 8),
-                    Text('7 active devices', style: TextStyle(fontSize: 14)),
-                  ],
-                ),
-                SizedBox(
-                  height: 28,
-                  child: VerticalDivider(
-                    width: 32,
-                    thickness: 1,
-                    color: Colors.grey,
-                  ),
-                ),
-                Row(
-                  children: [
                     Icon(
                       Icons.thermostat_outlined,
                       color: Colors.amber,

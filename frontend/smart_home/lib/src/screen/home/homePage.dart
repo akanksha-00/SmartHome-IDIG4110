@@ -5,11 +5,13 @@ import 'package:smart_home/src/models/devices/fanDeviceModel.dart';
 import 'package:smart_home/src/models/devices/lightDeviceModel.dart';
 import 'package:smart_home/src/models/devices/smartDeviceModel.dart';
 import 'package:smart_home/src/models/devices/smartPlugDeviceModel.dart';
+import 'package:smart_home/src/models/rooms/roomEnvironmentModel.dart';
 import 'package:smart_home/src/screen/home/widgets/addDeviceDialog.dart';
 import 'package:smart_home/src/screen/home/widgets/fanDeviceCard.dart';
 import 'package:smart_home/src/screen/home/widgets/floorPlanView.dart';
 import 'package:smart_home/src/screen/home/widgets/lightDeviceCard.dart';
 import 'package:smart_home/src/screen/home/widgets/smartPlugDeviceCard.dart';
+import 'package:smart_home/src/dummyData/roomEnvironmentData.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,6 +25,16 @@ class _HomePageState extends State<HomePage> {
   String _searchquery = '';
   final TextEditingController _searchController = TextEditingController();
   final List<SmartDeviceModel> devices = createSmartDevices();
+  String _selectedRoom = 'living';
+
+  final Map<String, String> _roomLabels = {
+    'living': 'Living Room',
+    'kitchen': 'Kitchen',
+    'bedroom1': 'Bedroom 1',
+    'bathroom1': 'Bathroom 1',
+  };
+
+  bool _showRoomStats = false;
 
   @override
   void dispose() {
@@ -85,13 +97,19 @@ class _HomePageState extends State<HomePage> {
     throw UnsupportedError('Unsupported device type');
   }
 
-  int get _activeDevicesCount {
-    return (devices.where((device) => device.isOn)).length;
-  }
+  int get _roomDeviceCount =>
+      devices.where((device) => device.roomId == _selectedRoom).length;
+
+  int get _roomActiveDeviceCount => devices
+      .where((device) => device.roomId == _selectedRoom && device.isOn)
+      .length;
 
   List<SmartDeviceModel> get _filteredDevices {
     final query = _searchquery.trim().toLowerCase();
     return devices.where((device) {
+      if (device.roomId != _selectedRoom) {
+        return false;
+      }
       final matchesSearch = device.title.toLowerCase().contains(query) ||
           device.subtitle.toLowerCase().contains(query);
 
@@ -112,22 +130,103 @@ class _HomePageState extends State<HomePage> {
     }).toList();
   }
 
+  RoomEnvironmentModel? get _selectedEnvironment =>
+      roomEnvironments[_selectedRoom];
+
+  Widget _buildRoomStatsCard() {
+    final environment = _selectedEnvironment;
+
+    if (environment == null) {
+      return const SizedBox.shrink();
+    }
+
+    return SizedBox(
+      width: 280,
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Room environment',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildRoomStatRow(
+                icon: Icons.air,
+                label: 'Air quality',
+                value: environment.airQuality,
+              ),
+              const SizedBox(height: 14),
+              _buildRoomStatRow(
+                icon: Icons.thermostat,
+                label: 'Temperature',
+                value: '${environment.temperature.toStringAsFixed(1)}°C',
+              ),
+              const SizedBox(height: 14),
+              _buildRoomStatRow(
+                icon: Icons.water_drop_outlined,
+                label: 'Humidity',
+                value: '${environment.humidity}%',
+              ),
+              const SizedBox(height: 14),
+              _buildRoomStatRow(
+                icon: Icons.people_outline,
+                label: 'Occupancy',
+                value: '${environment.occupancy} people',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoomStatRow({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: Colors.amber),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleDevices = _filteredDevices;
 
     return Row(
       children: [
-        const Expanded(
+        Expanded(
           child: Padding(
-            padding: EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Column(
+                    const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text('Floor'),
@@ -143,19 +242,31 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ],
                     ),
-                    SizedBox(width: 24),
+                    const SizedBox(width: 24),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Room'),
-                        SizedBox(height: 12),
-                        DropdownMenu(
+                        const Text('Room'),
+                        const SizedBox(height: 12),
+                        DropdownMenu<String>(
                           width: 200,
-                          initialSelection: 'living',
+                          initialSelection: _selectedRoom,
+                          onSelected: (String? value) {
+                            if (value == null) return;
+                            setState(() {
+                              _selectedRoom = value;
+                            });
+                          },
                           selectOnly: true,
-                          dropdownMenuEntries: [
+                          dropdownMenuEntries: const [
                             DropdownMenuEntry(
                                 value: 'living', label: 'Living Room'),
+                            DropdownMenuEntry(
+                                value: 'kitchen', label: 'Kitchen'),
+                            DropdownMenuEntry(
+                                value: 'bedroom1', label: 'Bedroom 1'),
+                            DropdownMenuEntry(
+                                value: 'bathroom1', label: 'Bathroom 1'),
                           ],
                         ),
                       ],
@@ -163,7 +274,56 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 Expanded(
-                  child: FloorPlanView(),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      FloorPlanView(
+                        selectedRoom: _selectedRoom,
+                        onRoomSelected: (String roomId) {
+                          if (roomId == _selectedRoom) return;
+
+                          _searchController.clear();
+
+                          setState(() {
+                            _selectedRoom = roomId;
+                            _selectedDeviceCetegory = 'All';
+                            _searchquery = '';
+                          });
+                        },
+                      ),
+                      Positioned(
+                        bottom: 16,
+                        right: 16,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (_showRoomStats) ...[
+                              _buildRoomStatsCard(),
+                              const SizedBox(height: 8),
+                            ],
+                            IconButton.filledTonal(
+                              onPressed: () {
+                                setState(() {
+                                  _showRoomStats = !_showRoomStats;
+                                });
+                              },
+                              icon: Icon(
+                                _showRoomStats
+                                    ? Icons.expand_more
+                                    : Icons.info_outline,
+                              ),
+                              iconSize: 30,
+                              padding: const EdgeInsets.all(16),
+                              tooltip: _showRoomStats
+                                  ? 'Hide room stats'
+                                  : 'Show room stats',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -182,10 +342,10 @@ class _HomePageState extends State<HomePage> {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Living Room',
-                        style: TextStyle(
+                        _roomLabels[_selectedRoom] ?? 'Room',
+                        style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.w600,
                         ),
@@ -195,7 +355,9 @@ class _HomePageState extends State<HomePage> {
                       onPressed: () async {
                         final newDevice = await showDialog<SmartDeviceModel>(
                           context: context,
-                          builder: (context) => const AddDeviceDialog(),
+                          builder: (context) => AddDeviceDialog(
+                            roomId: _selectedRoom,
+                          ),
                         );
                         if (!mounted || newDevice == null) {
                           return;
@@ -213,7 +375,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${devices.length} devices · $_activeDevicesCount on',
+                  '$_roomDeviceCount devices · $_roomActiveDeviceCount on',
                   style: const TextStyle(
                     color: Colors.grey,
                   ),
@@ -285,10 +447,12 @@ class _HomePageState extends State<HomePage> {
                 ),
                 Expanded(
                   child: visibleDevices.isEmpty
-                      ? const Center(
+                      ? Center(
                           child: Text(
-                            'No devices to show',
-                            style: TextStyle(
+                            _roomDeviceCount == 0
+                                ? 'No devices in this room yet'
+                                : 'No devices match your search or category',
+                            style: const TextStyle(
                               color: Colors.grey,
                             ),
                           ),

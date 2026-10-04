@@ -5,7 +5,12 @@ import 'package:smart_home/src/models/devices/smartDeviceModel.dart';
 import 'package:smart_home/src/models/devices/smartPlugDeviceModel.dart';
 
 class AddDeviceDialog extends StatefulWidget {
-  const AddDeviceDialog({super.key});
+  const AddDeviceDialog({
+    super.key,
+    required this.roomId,
+  });
+
+  final String roomId;
 
   @override
   State<AddDeviceDialog> createState() => _AddDeviceDialogState();
@@ -16,6 +21,14 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
   final _locationController = TextEditingController();
   final _formkey = GlobalKey<FormState>();
   String _deviceType = 'Light';
+
+  String get _roomName => switch (widget.roomId) {
+        'living' => 'Living Room',
+        'kitchen' => 'Kitchen',
+        'bedroom1' => 'Bedroom 1',
+        'bathroom1' => 'Bathroom 1',
+        _ => 'Room',
+      };
 
   @override
   void dispose() {
@@ -34,16 +47,19 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
           id: id,
           title: title,
           subtitle: subtitle,
+          roomId: widget.roomId,
         ),
       'Fan' => FanDeviceModel(
           id: id,
           title: title,
           subtitle: subtitle,
+          roomId: widget.roomId,
         ),
       'Plug' => SmartPlugDeviceModel(
           id: id,
           title: title,
           subtitle: subtitle,
+          roomId: widget.roomId,
         ),
       _ => throw StateError('unknown device type')
     };
@@ -52,9 +68,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text(
-        'Add Device',
-      ),
+      title: Text('Add device to $_roomName'),
       content: Form(
         key: _formkey,
         child: Column(
@@ -62,7 +76,7 @@ class _AddDeviceDialogState extends State<AddDeviceDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             DropdownMenu<String>(
-              label: const Text('Device Type'),
+              label: const Text('Add device'),
               initialSelection: _deviceType,
               selectOnly: true,
               dropdownMenuEntries: const [
