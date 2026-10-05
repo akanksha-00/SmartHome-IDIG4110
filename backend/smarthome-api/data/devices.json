@@ -1,0 +1,64 @@
+[
+  {
+    "id": "device-001",
+    "name": "Ceiling Light",
+    "type": "light",
+    "house_id": "house-001",
+    "room_id": "living-room",
+    "manufacturer": "Philips",
+    "model": "Hue",
+    "manufactured_year": 2025,
+    "installed_year": 2026,
+    "installer": "Admin",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "brightness": {
+        "type": "integer",
+        "min": 0,
+        "max": 100
+      }
+    },
+    "state": {
+      "power": false,
+      "brightness": 4
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-002",
+    "name": "Fan",
+    "type": "fan",
+    "house_id": "house-001",
+    "room_id": "living-room",
+    "manufacturer": "Dyson",
+    "model": "Fan-01",
+    "manufactured_year": 2019,
+    "installed_year": 2025,
+    "installer": "Admin",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "speed": {
+        "type": "integer",
+        "min": 1,
+        "max": 5
+      },
+      "oscillation": {
+        "type": "boolean"
+      }
+    },
+    "state": {
+      "power": true,
+      "speed": 3,
+      "oscillation": false
+    },
+    "status": {
+      "operational": true
+    }
+  }
+]

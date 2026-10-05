@@ -1,0 +1,16 @@
+[
+  {
+    "id": "house-001",
+    "name": "My Second house",
+    "address": "string",
+    "postal_code": "string",
+    "city": "string"
+  },
+  {
+    "id": "house-002",
+    "name": "House2",
+    "address": "Oslo 276",
+    "postal_code": "string",
+    "city": "Oslo"
+  }
+]

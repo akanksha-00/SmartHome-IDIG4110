@@ -1,0 +1,12 @@
+[
+  {
+    "id": "living-room",
+    "house_id": "house-001",
+    "name": "Living Room"
+  },
+  {
+    "id": "bedroom",
+    "house_id": "house-001",
+    "name": "Bedroom"
+  }
+]
