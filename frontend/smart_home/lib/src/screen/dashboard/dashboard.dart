@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/screen/automations/automations_page.dart';
 import 'package:smart_home/src/screen/home/homePage.dart';
 import 'package:smart_home/src/screen/settings/settingsPage.dart';
 import 'package:smart_home/src/screen/energy/energyPage.dart';
@@ -24,7 +25,7 @@ class _DashboardState extends State<Dashboard> {
       label: 'Automations',
       icon: Icons.bolt_outlined,
       selectedIcon: Icons.bolt,
-      page: const Center(child: Text('Automations')),
+      page: const AutomationsPage(),
     ),
     (
       label: 'Energy',
