@@ -35,6 +35,7 @@ class _HomePageState extends State<HomePage> {
   };
 
   bool _showRoomStats = false;
+  VoidCallback? _resetFloorPlan;
 
   @override
   void dispose() {
@@ -211,6 +212,77 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildScrollableFloorPanel({
+    required Widget child,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: constraints.maxWidth < 700 ? 700 : constraints.maxWidth,
+                height: constraints.maxHeight,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.vertical,
+                  child: SizedBox(
+                    height: constraints.maxHeight < 550
+                        ? 550
+                        : constraints.maxHeight,
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 16,
+              left: 16,
+              child: IconButton.filledTonal(
+                onPressed: () {
+                  _resetFloorPlan?.call();
+                },
+                icon: const Icon(Icons.refresh),
+                iconSize: 30,
+                padding: const EdgeInsets.all(16),
+                tooltip: 'Reset view',
+              ),
+            ),
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (_showRoomStats) ...[
+                    _buildRoomStatsCard(),
+                    const SizedBox(height: 8),
+                  ],
+                  IconButton.filledTonal(
+                    onPressed: () {
+                      setState(() {
+                        _showRoomStats = !_showRoomStats;
+                      });
+                    },
+                    icon: Icon(
+                      _showRoomStats ? Icons.expand_more : Icons.info_outline,
+                    ),
+                    iconSize: 30,
+                    padding: const EdgeInsets.all(16),
+                    tooltip:
+                        _showRoomStats ? 'Hide room stats' : 'Show room stats',
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final visibleDevices = _filteredDevices;
@@ -220,112 +292,91 @@ class _HomePageState extends State<HomePage> {
         Expanded(
           child: Padding(
             padding: const EdgeInsets.all(24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Floor'),
-                        SizedBox(height: 12),
-                        DropdownMenu(
-                          width: 200,
-                          initialSelection: 'ground',
-                          selectOnly: true,
-                          dropdownMenuEntries: [
-                            DropdownMenuEntry(
-                                value: 'ground', label: 'Ground Floor'),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 24),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Room'),
-                        const SizedBox(height: 12),
-                        DropdownMenu<String>(
-                          width: 200,
-                          initialSelection: _selectedRoom,
-                          onSelected: (String? value) {
-                            if (value == null) return;
-                            setState(() {
-                              _selectedRoom = value;
-                            });
-                          },
-                          selectOnly: true,
-                          dropdownMenuEntries: const [
-                            DropdownMenuEntry(
-                                value: 'living', label: 'Living Room'),
-                            DropdownMenuEntry(
-                                value: 'kitchen', label: 'Kitchen'),
-                            DropdownMenuEntry(
-                                value: 'bedroom1', label: 'Bedroom 1'),
-                            DropdownMenuEntry(
-                                value: 'bathroom1', label: 'Bathroom 1'),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
+            child: _buildScrollableFloorPanel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      FloorPlanView(
-                        selectedRoom: _selectedRoom,
-                        onRoomSelected: (String roomId) {
-                          if (roomId == _selectedRoom) return;
-
-                          _searchController.clear();
-
-                          setState(() {
-                            _selectedRoom = roomId;
-                            _selectedDeviceCetegory = 'All';
-                            _searchquery = '';
-                          });
-                        },
-                      ),
-                      Positioned(
-                        bottom: 16,
-                        right: 16,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            if (_showRoomStats) ...[
-                              _buildRoomStatsCard(),
-                              const SizedBox(height: 8),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Floor'),
+                          SizedBox(height: 12),
+                          DropdownMenu(
+                            width: 200,
+                            initialSelection: 'floor1',
+                            selectOnly: true,
+                            dropdownMenuEntries: [
+                              DropdownMenuEntry(
+                                  value: 'floor1', label: 'Floor 1'),
                             ],
-                            IconButton.filledTonal(
-                              onPressed: () {
-                                setState(() {
-                                  _showRoomStats = !_showRoomStats;
-                                });
-                              },
-                              icon: Icon(
-                                _showRoomStats
-                                    ? Icons.expand_more
-                                    : Icons.info_outline,
-                              ),
-                              iconSize: 30,
-                              padding: const EdgeInsets.all(16),
-                              tooltip: _showRoomStats
-                                  ? 'Hide room stats'
-                                  : 'Show room stats',
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 24),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Room'),
+                          const SizedBox(height: 12),
+                          DropdownMenu<String>(
+                            width: 200,
+                            initialSelection: _selectedRoom,
+                            onSelected: (String? value) {
+                              if (value == null || value == _selectedRoom)
+                                return;
+                              _searchController.clear();
+
+                              setState(() {
+                                _selectedRoom = value;
+                                _selectedDeviceCetegory = 'All';
+                                _searchquery = '';
+                              });
+                            },
+                            selectOnly: true,
+                            dropdownMenuEntries: const [
+                              DropdownMenuEntry(
+                                  value: 'living', label: 'Living Room'),
+                              DropdownMenuEntry(
+                                  value: 'kitchen', label: 'Kitchen'),
+                              DropdownMenuEntry(
+                                  value: 'bedroom1', label: 'Bedroom 1'),
+                              DropdownMenuEntry(
+                                  value: 'bathroom1', label: 'Bathroom 1'),
+                            ],
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        FloorPlanView(
+                          selectedRoom: _selectedRoom,
+                          onRoomSelected: (String roomId) {
+                            if (roomId == _selectedRoom) return;
+
+                            _searchController.clear();
+
+                            setState(() {
+                              _selectedRoom = roomId;
+                              _selectedDeviceCetegory = 'All';
+                              _searchquery = '';
+                            });
+                          },
+                          onResetReady: (reset) {
+                            _resetFloorPlan = reset;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

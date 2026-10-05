@@ -6,11 +6,12 @@ class FloorPlanView extends StatefulWidget {
     super.key,
     this.selectedRoom = 'living',
     this.onRoomSelected,
+    this.onResetReady,
   });
 
   final String selectedRoom;
-
   final ValueChanged<String>? onRoomSelected;
+  final ValueChanged<VoidCallback>? onResetReady;
 
   @override
   State<FloorPlanView> createState() => _FloorPlanViewState();
@@ -117,6 +118,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
       },
       onSetupComplete: () {
         if (mounted) {
+          widget.onResetReady?.call(_resetView);
           setState(() {});
         }
       },
@@ -247,25 +249,15 @@ class _FloorPlanViewState extends State<FloorPlanView> {
           onPointerCancel: (event) {
             _pointerDownPosition = null;
           },
-          child: _threeJs.build(),
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              size: constrains.biggest,
+            ),
+            child: _threeJs.build(),
+          ),
         ),
       );
-      return Stack(
-        children: [
-          view,
-          Positioned(
-            bottom: 16,
-            left: 16,
-            child: IconButton.filledTonal(
-              onPressed: _resetView,
-              icon: const Icon(Icons.refresh),
-              iconSize: 30,
-              padding: const EdgeInsets.all(16),
-              tooltip: 'Reset view',
-            ),
-          ),
-        ],
-      );
+      return view;
     });
   }
 }

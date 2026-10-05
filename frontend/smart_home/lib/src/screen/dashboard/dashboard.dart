@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smart_home/src/screen/home/homePage.dart';
 import 'package:smart_home/src/screen/settings/settingsPage.dart';
+import 'package:smart_home/src/screen/energy/energyPage.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -20,16 +21,22 @@ class _DashboardState extends State<Dashboard> {
       page: const HomePage(),
     ),
     (
-      label: 'Security',
-      icon: Icons.shield_outlined,
-      selectedIcon: Icons.shield,
-      page: const Center(child: Text('Security')),
-    ),
-    (
       label: 'Automations',
       icon: Icons.bolt_outlined,
       selectedIcon: Icons.bolt,
       page: const Center(child: Text('Automations')),
+    ),
+    (
+      label: 'Energy',
+      icon: Icons.energy_savings_leaf_outlined,
+      selectedIcon: Icons.energy_savings_leaf,
+      page: const EnergyPage(),
+    ),
+    (
+      label: 'Security',
+      icon: Icons.shield_outlined,
+      selectedIcon: Icons.shield,
+      page: const Center(child: Text('Security')),
     ),
     (
       label: 'Settings',
