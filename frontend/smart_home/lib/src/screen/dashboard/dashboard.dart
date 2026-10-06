@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:smart_home/src/screen/automations/automations_page.dart';
+import 'package:smart_home/src/screen/safety/safety_page.dart';
 import 'package:smart_home/src/screen/home/homePage.dart';
 import 'package:smart_home/src/screen/settings/settingsPage.dart';
 import 'package:smart_home/src/screen/energy/energyPage.dart';
@@ -34,10 +35,10 @@ class _DashboardState extends State<Dashboard> {
       page: const EnergyPage(),
     ),
     (
-      label: 'Security',
+      label: 'Safety',
       icon: Icons.shield_outlined,
       selectedIcon: Icons.shield,
-      page: const Center(child: Text('Security')),
+      page: const SafetyPage(),
     ),
     (
       label: 'Settings',
