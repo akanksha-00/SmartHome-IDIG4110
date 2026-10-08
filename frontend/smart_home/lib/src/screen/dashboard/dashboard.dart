@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:smart_home/src/blocs/rooms/room_bloc.dart';
+import 'package:smart_home/src/screen/dashboard/dashboard_notifications.dart';
 import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/screen/automations/automations_page.dart';
 import 'package:smart_home/src/screen/safety/safety_page.dart';
@@ -109,11 +112,10 @@ class _DashboardState extends State<Dashboard> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications, color: Colors.amber),
-            onPressed: () {
-              // Handle notifications action
-            },
+          BlocBuilder<RoomBloc, RoomState>(
+            builder: (context, state) => DashboardNotifications(
+              roomNames: {for (final room in state.rooms) room.id: room.name},
+            ),
           ),
         ],
         bottom: PreferredSize(

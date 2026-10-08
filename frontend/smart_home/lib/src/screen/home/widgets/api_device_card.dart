@@ -95,6 +95,27 @@ class ApiDeviceCard extends StatelessWidget {
           isOn: isOn,
           onPowerChanged: power,
         );
+      case 'smoke_detector':
+      case 'temperature_sensor':
+        final smoke = device.type.toLowerCase() == 'smoke_detector';
+        final value = device.state[smoke ? 'smoke' : 'temperature'];
+        final reading = smoke
+            ? (value is bool
+                ? (value ? 'Smoke detected' : 'No smoke detected')
+                : 'No reading')
+            : (value is num && value.isFinite
+                ? '${value.toStringAsFixed(1)}°C'
+                : 'No reading');
+        return Card(
+            child: ListTile(
+          leading: Icon(smoke ? Icons.sensors : Icons.thermostat,
+              color: smoke && value == true
+                  ? Colors.redAccent
+                  : Theme.of(context).colorScheme.primary),
+          title: Text(device.name),
+          subtitle: Text(
+              '$subtitle · ${device.status['operational'] == false ? 'Offline' : reading}'),
+        ));
       default:
         return Card(
             child: ListTile(

@@ -6,7 +6,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/src/blocs/devices/device_bloc.dart';
-import 'package:smart_home/src/config/app_config.dart';
 import 'package:smart_home/src/screen/home/widgets/addDeviceDialog.dart';
 import 'package:smart_home/src/screen/home/widgets/api_device_card.dart';
 import 'package:smart_home/src/screen/home/widgets/device_panel.dart';
@@ -81,13 +80,14 @@ void main() {
   });
 
   testWidgets(
-      'switch sends a PATCH, stays disabled while pending, then rolls back on failure',
+      'switch sends PATCH, stays disabled while pending, and preserves actual state on failure',
       (tester) async {
     final response = Completer<http.Response>();
     var writes = 0;
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') return jsonResponse(houseDevices());
       writes++;
+      expectSync(request.method, 'PATCH');
       expectSync(jsonDecode(request.body), [
         {'name': 'power', 'value': true}
       ]);
@@ -96,7 +96,7 @@ void main() {
     await openPanel(tester, bloc);
     await tester.tap(cardSwitch('device-001'));
     await tester.pump();
-    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
     expect(tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNull);
     response.complete(http.Response('Unavailable', 503));
     await tester.pumpAndSettle();
@@ -112,6 +112,7 @@ void main() {
       (tester) async {
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') return jsonResponse(houseDevices());
+      expectSync(request.method, 'PATCH');
       expectSync(jsonDecode(request.body), [
         {'name': 'speed', 'value': 5}
       ]);
@@ -126,6 +127,7 @@ void main() {
     expect(find.text('5'), findsOneWidget);
     await tester.tap(find.text('5'));
     await tester.pumpAndSettle();
+    expect(bloc.state.pendingDeviceIds, isEmpty);
     final fan = tester.widget<FanDeviceCard>(find.byType(FanDeviceCard));
     expect(fan.speed, 5);
     expect(fan.speedValues, [1, 2, 3, 4, 5]);
@@ -137,15 +139,17 @@ void main() {
       'brightness previews locally and sends one scaled PATCH when the drag ends',
       (tester) async {
     var writes = 0;
+    final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') {
         return jsonResponse([deviceJson(power: true)]);
       }
       writes++;
+      expectSync(request.method, 'PATCH');
       expectSync(jsonDecode(request.body), [
         {'name': 'brightness', 'value': 60}
       ]);
-      return jsonResponse(deviceJson(power: true, brightness: 60));
+      return response.future;
     });
     await openPanel(tester, bloc);
     final slider = tester.widget<Slider>(find.byType(Slider));
@@ -159,7 +163,13 @@ void main() {
     await tester.pump();
     await tester.pumpAndSettle();
     expect(writes, 1);
+    expect(find.text('Updating…'), findsOneWidget);
+    expect(bloc.state.devices.single.state['brightness'], 40);
+    response.complete(jsonResponse(deviceJson(power: true, brightness: 60)));
+    await tester.pumpAndSettle();
     expect(bloc.state.updateError, isNull);
+    expect(bloc.state.pendingDeviceIds, isEmpty);
+    expect(find.text('Updating…'), findsNothing);
     expect(bloc.state.devices.single.state['brightness'], 60);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
   });
@@ -255,11 +265,5 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(AddDeviceDialog), findsNothing);
     expect(writes, 2);
-  });
-
-  test('floor-plan aliases preserve the API room IDs and unknown IDs', () {
-    expect(AppConfig.deviceRoomId('living'), 'living-room');
-    expect(AppConfig.deviceRoomId('bedroom1'), 'bedroom');
-    expect(AppConfig.deviceRoomId('future-room'), 'future-room');
   });
 }

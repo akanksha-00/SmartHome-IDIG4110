@@ -56,7 +56,7 @@ class _LightDeviceCardState extends State<LightDeviceCard> {
               onChanged: widget.isOn && widget.onBrightnessChanged != null
                   ? (value) => setState(() => _dragBrightness = value)
                   : null,
-              // A drag sends one PATCH, avoiding a request for every pixel.
+              // A drag sends one command, avoiding a request for every pixel.
               onChangeEnd: widget.isOn && widget.onBrightnessChanged != null
                   ? (value) {
                       setState(() => _dragBrightness = null);

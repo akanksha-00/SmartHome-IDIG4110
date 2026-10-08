@@ -1,15 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/config/floor_plan_bindings.dart';
+import 'package:smart_home/src/models/devices/api_device.dart';
+import 'package:smart_home/src/models/rooms/api_room.dart';
+import 'package:smart_home/src/screen/home/widgets/floor_plan_device_layer.dart';
 import 'package:three_js/three_js.dart' as three;
 
 class FloorPlanView extends StatefulWidget {
   const FloorPlanView({
     super.key,
-    this.selectedRoom = 'living',
+    required this.rooms,
+    this.devices = const [],
+    this.selectedRoom,
     this.onRoomSelected,
     this.onResetReady,
   });
 
-  final String selectedRoom;
+  final List<ApiRoom> rooms;
+  final List<ApiDevice> devices;
+  final String? selectedRoom;
   final ValueChanged<String>? onRoomSelected;
   final ValueChanged<VoidCallback>? onResetReady;
 
@@ -30,13 +38,8 @@ class _FloorPlanViewState extends State<FloorPlanView> {
 
   three.OrbitControls? _controls;
   three.Object3D? _houseModel;
-
-  final Map<String, String> _roomObjectNames = {
-    'living': 'livingRoom',
-    'kitchen': 'kitchen',
-    'bedroom1': 'bedroom1',
-    'bathroom1': 'bathroom1',
-  };
+  final _deviceLayer = FloorPlanDeviceLayer();
+  String? _hoveredDeviceId;
 
   final _raycaster = three.Raycaster();
 
@@ -86,6 +89,12 @@ class _FloorPlanViewState extends State<FloorPlanView> {
         final loader = three.GLTFLoader();
         final model = await loader.fromAsset('assets/models/layout1.glb');
 
+        if (!mounted) {
+          model?.scene.dispose();
+          loader.dispose();
+          return;
+        }
+
         if (model == null) {
           throw StateError('Could not load layout1.glb');
         }
@@ -104,6 +113,9 @@ class _FloorPlanViewState extends State<FloorPlanView> {
           }
         });
 
+        _scene.add(_deviceLayer.object);
+        _syncDevices();
+
         _controls = three.OrbitControls(
           _camera,
           _threeJs.globalKey,
@@ -114,6 +126,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
 
         _threeJs.addAnimationEvent((dt) {
           _controls?.update();
+          _deviceLayer.animate(dt);
         });
       },
       onSetupComplete: () {
@@ -131,13 +144,20 @@ class _FloorPlanViewState extends State<FloorPlanView> {
   @override
   void dispose() {
     _controls?.dispose();
+    _deviceLayer.dispose();
     _threeJs.dispose();
     super.dispose();
   }
 
   void _updateRoomHighlight() {
-    for (final entry in _roomObjectNames.entries) {
-      final room = _houseModel?.getObjectByName(entry.value);
+    // A refresh can remove the previously selected room from the API list.
+    for (final material in _floorMaterials.values) {
+      material.color = three.Color.fromHex32(0x8795A3).convertSRGBToLinear();
+    }
+    for (final record in widget.rooms) {
+      final objectName = FloorPlanBindings.objectNameFor(record);
+      if (objectName == null) continue;
+      final room = _houseModel?.getObjectByName(objectName);
 
       room?.traverse((object) {
         if (object is! three.Mesh) return;
@@ -152,7 +172,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
 
         object.material = material;
 
-        final colorHex = entry.key == widget.selectedRoom ? 0xFFB547 : 0x8795A3;
+        final colorHex = record.id == widget.selectedRoom ? 0xFFB547 : 0x8795A3;
 
         material.color = three.Color.fromHex32(colorHex).convertSRGBToLinear();
       });
@@ -163,26 +183,62 @@ class _FloorPlanViewState extends State<FloorPlanView> {
   void didUpdateWidget(covariant FloorPlanView oldWidget) {
     super.didUpdateWidget(oldWidget);
 
-    if (oldWidget.selectedRoom != widget.selectedRoom) {
+    if (oldWidget.selectedRoom != widget.selectedRoom ||
+        oldWidget.rooms != widget.rooms) {
       _updateRoomHighlight();
     }
+    if (oldWidget.devices != widget.devices ||
+        oldWidget.rooms != widget.rooms) {
+      _syncDevices();
+    }
+  }
+
+  void _syncDevices() {
+    final house = _houseModel;
+    if (house == null) return;
+    _deviceLayer.sync(
+        devices: widget.devices, rooms: widget.rooms, house: house);
+  }
+
+  void _setPointerRay(Offset position, Size size) {
+    final pointer = three.Vector2(
+      (position.dx / size.width) * 2 - 1,
+      -(position.dy / size.height) * 2 + 1,
+    );
+    _camera.updateMatrixWorld();
+    _raycaster.setFromCamera(pointer, _camera);
+  }
+
+  void _hoverDeviceAt(Offset position, Size size) {
+    if (_houseModel == null || size.isEmpty || _pointerDownPosition != null) {
+      return;
+    }
+    _setPointerRay(position, size);
+    final id = _deviceLayer.pick(_raycaster)?.id;
+    if (id != _hoveredDeviceId) setState(() => _hoveredDeviceId = id);
+  }
+
+  String _deviceStatus(ApiDevice device) {
+    return DeviceVisualState(device).statusLabel;
   }
 
   void _selectRoomAt(Offset position, Size size) {
     if (_houseModel == null || size.isEmpty) return;
 
-    final pointer = three.Vector2(
-      (position.dx / size.width) * 2 - 1,
-      -(position.dy / size.height) * 2 + 1,
-    );
-
-    _raycaster.setFromCamera(pointer, _camera);
+    _setPointerRay(position, size);
+    final device = _deviceLayer.pick(_raycaster);
+    if (device?.roomId != null) {
+      widget.onRoomSelected?.call(device!.roomId!);
+      return;
+    }
 
     String? clickedRoom;
     double closestDistance = double.infinity;
 
-    for (final entry in _roomObjectNames.entries) {
-      final floor = _houseModel!.getObjectByName(entry.value);
+    for (final room in widget.rooms) {
+      final objectName = FloorPlanBindings.objectNameFor(room);
+      if (objectName == null) continue;
+      final floor = _houseModel!.getObjectByName(objectName);
       if (floor == null) continue;
 
       final hits = _raycaster.intersectObject(floor, true);
@@ -190,7 +246,7 @@ class _FloorPlanViewState extends State<FloorPlanView> {
 
       if (hits.first.distance < closestDistance) {
         closestDistance = hits.first.distance;
-        clickedRoom = entry.key;
+        clickedRoom = room.id;
       }
     }
 
@@ -225,39 +281,79 @@ class _FloorPlanViewState extends State<FloorPlanView> {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constrains) {
       final view = ClipRect(
-        child: Listener(
-          onPointerDown: (event) {
-            _pointerDownPosition =
-                event.buttons == 1 ? event.localPosition : null;
-            _pointerDragged = false;
-          },
-          onPointerMove: (event) {
-            final start = _pointerDownPosition;
-
-            if (start != null && (event.localPosition - start).distance > 6) {
-              _pointerDragged = true;
+        child: MouseRegion(
+          onExit: (_) {
+            if (_hoveredDeviceId != null) {
+              setState(() => _hoveredDeviceId = null);
             }
           },
-          onPointerUp: (event) {
-            final isClick = _pointerDownPosition != null && !_pointerDragged;
-            _pointerDownPosition = null;
+          child: Listener(
+            onPointerHover: (event) =>
+                _hoverDeviceAt(event.localPosition, constrains.biggest),
+            onPointerDown: (event) {
+              _pointerDownPosition =
+                  event.buttons == 1 ? event.localPosition : null;
+              _pointerDragged = false;
+            },
+            onPointerMove: (event) {
+              final start = _pointerDownPosition;
 
-            if (isClick) {
-              _selectRoomAt(event.localPosition, constrains.biggest);
-            }
-          },
-          onPointerCancel: (event) {
-            _pointerDownPosition = null;
-          },
-          child: MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              size: constrains.biggest,
+              if (start != null && (event.localPosition - start).distance > 6) {
+                _pointerDragged = true;
+              }
+            },
+            onPointerUp: (event) {
+              final isClick = _pointerDownPosition != null && !_pointerDragged;
+              _pointerDownPosition = null;
+
+              if (isClick) {
+                _selectRoomAt(event.localPosition, constrains.biggest);
+              }
+            },
+            onPointerCancel: (event) {
+              _pointerDownPosition = null;
+            },
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                size: constrains.biggest,
+              ),
+              child: _threeJs.build(),
             ),
-            child: _threeJs.build(),
           ),
         ),
       );
-      return view;
+      final hovered = _deviceLayer.markers[_hoveredDeviceId]?.device;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          view,
+          if (hovered != null)
+            Positioned(
+              top: 12,
+              left: 12,
+              child: IgnorePointer(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(hovered.name,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text(_deviceStatus(hovered),
+                            style: const TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
     });
   }
 }

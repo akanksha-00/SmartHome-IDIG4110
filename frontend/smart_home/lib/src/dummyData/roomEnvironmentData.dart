@@ -1,7 +1,7 @@
 import 'package:smart_home/src/models/rooms/roomEnvironmentModel.dart';
 
 const Map<String, RoomEnvironmentModel> roomEnvironments = {
-  'living': RoomEnvironmentModel(
+  'living-room': RoomEnvironmentModel(
     airQuality: 'Good',
     temperature: 22.0,
     humidity: 45,
@@ -13,7 +13,7 @@ const Map<String, RoomEnvironmentModel> roomEnvironments = {
     humidity: 50,
     occupancy: 0,
   ),
-  'bedroom1': RoomEnvironmentModel(
+  'bedroom': RoomEnvironmentModel(
     airQuality: 'Good',
     temperature: 21.0,
     humidity: 42,

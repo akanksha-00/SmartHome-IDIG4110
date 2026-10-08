@@ -7,6 +7,7 @@ import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 import 'package:smart_home/src/config/app_config.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
+import 'package:smart_home/src/repositories/house_realtime_repository.dart';
 
 Map<String, Object?> deviceJson({
   String id = 'device-001',
@@ -40,14 +41,15 @@ Map<String, Object?> deviceJson({
 http.Response jsonResponse(Object body, [int status = 200]) =>
     http.Response(jsonEncode(body), status);
 
-DeviceBloc testDeviceBloc(
-    Future<http.Response> Function(http.Request) handler) {
+DeviceBloc testDeviceBloc(Future<http.Response> Function(http.Request) handler,
+    {HouseRealtimeRepository? realtime}) {
   final client = ApiClient(client: MockClient(handler));
   final bloc = DeviceBloc(
+      realtime: realtime,
       repository: DeviceRepository(
-    apiClient: client,
-    houseId: AppConfig.houseId,
-  ));
+        apiClient: client,
+        houseId: AppConfig.houseId,
+      ));
   addTearDown(() async {
     if (!bloc.isClosed) await bloc.close();
     client.close();
@@ -65,3 +67,13 @@ Future<void> loadDevices(DeviceBloc bloc) async {
   bloc.add(const DevicesRequested());
   await loaded;
 }
+
+Map<String, Object?> sensorJson(
+        String id, String type, String key, Object value) =>
+    {
+      ...deviceJson(id: id, type: type),
+      'capabilities': {
+        key: {'type': key == 'smoke' ? 'boolean' : 'number'}
+      },
+      'state': {key: value},
+    };

@@ -104,6 +104,24 @@ class DeviceRepository {
     return _fromJson(jsonObject(response));
   }
 
+  /// Acknowledges MQTT publication only. Actual state arrives over WebSocket.
+  Future<void> sendCommand({
+    required String id,
+    required Map<String, Object?> updates,
+  }) async {
+    if (updates.isEmpty || updates.keys.any((key) => key.trim().isEmpty)) {
+      throw ArgumentError('Supply at least one named capability update');
+    }
+    final ack = jsonObject(await apiClient.post(
+      ApiEndpoints.deviceCommand(houseId, id),
+      {'state': updates},
+    ));
+    if (ack['house_id'] != houseId || ack['device_id'] != id) {
+      throw const FormatException(
+          'The command acknowledged a different device');
+    }
+  }
+
   Future<ApiDevice> removeDevice({
     required String id,
     required Map<String, Object?> updates,

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 import 'package:smart_home/src/models/devices/device_create_request.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
+import 'package:smart_home/src/models/devices/device_message.dart';
 
 import 'helpers/device_test_data.dart';
 
@@ -94,8 +95,7 @@ void main() {
     expect(bloc.state.loadError, isNull);
   });
 
-  test(
-      'PATCH is optimistic, uses capability updates, then trusts the full response',
+  test('PATCH saves the returned state without waiting for a live report',
       () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async {
@@ -108,24 +108,23 @@ void main() {
       return response.future;
     });
     await loadDevices(bloc);
-    final original = bloc.state.devices.single;
     final pending =
-        waitForDeviceState(bloc, (state) => state.updatingDeviceId != null);
+        waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isNotEmpty);
     bloc.add(
-        DeviceStateUpdateRequested(id: original.id, updates: {'power': true}));
+        DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
     await pending;
-    expect(bloc.state.devices.single.state['power'], isTrue);
-    expect(original.state['power'], isFalse);
-    final saved =
-        waitForDeviceState(bloc, (state) => state.updatingDeviceId == null);
-    response.complete(jsonResponse(
-        deviceJson(name: 'Server light', power: true, brightness: 66)));
-    await saved;
-    expect(bloc.state.devices.single.name, 'Server light');
-    expect(bloc.state.devices.single.state['brightness'], 66);
+    expect(bloc.state.devices.single.state['power'], false);
+    final confirmed =
+        waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
+    response.complete(jsonResponse(deviceJson(power: true)));
+    await confirmed;
+    expect(bloc.state.devices.single.state['power'], true);
+    expect(bloc.state.devices.single.state['brightness'], 40);
+    expect(bloc.state.devices.single.name, 'Ceiling Light');
   });
 
-  test('failed PATCH rolls back the original record and keeps other devices',
+  test(
+      'live sensor/state reports are processed during PATCH; failure never rolls them back',
       () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async => request.method == 'GET'
@@ -134,52 +133,88 @@ void main() {
         : response.future);
     await loadDevices(bloc);
     final pending =
-        waitForDeviceState(bloc, (state) => state.updatingDeviceId != null);
+        waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isNotEmpty);
     bloc.add(
         DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
     await pending;
-    final failed =
-        waitForDeviceState(bloc, (state) => state.updateError != null);
+    final received = waitForDeviceState(
+        bloc, (s) => s.devices.first.state['brightness'] == 90);
+    bloc.add(DeviceRealtimeReceived(
+        DeviceMessage(deviceId: 'device-001', updates: {'brightness': 90})));
+    await received;
+    final failed = waitForDeviceState(bloc, (s) => s.updateError != null);
     response.complete(http.Response('Unavailable', 503));
     await failed;
-    expect(bloc.state.devices.first.state['power'], isFalse);
+    expect(bloc.state.devices.first.state['power'], false);
+    expect(bloc.state.devices.first.state['brightness'], 90);
+    expect(bloc.state.pendingDeviceIds, isEmpty);
     expect(bloc.state.devices, hasLength(2));
-    expect(bloc.state.updatingDeviceId, isNull);
-    expect(bloc.state.updateErrorRevision, 1);
   });
 
-  test('queued PATCHes preserve ordering and changes to other capabilities',
-      () async {
-    final firstResponse = Completer<http.Response>();
-    var writes = 0;
-    final bloc = testDeviceBloc((request) async {
-      if (request.method == 'GET') return jsonResponse([deviceJson()]);
-      writes++;
-      if (writes == 1) return firstResponse.future;
-      expect(jsonDecode(request.body), [
-        {'name': 'brightness', 'value': 75}
-      ]);
-      return jsonResponse(deviceJson(power: true, brightness: 75));
-    });
+  test('newer live reports take precedence over the PATCH response', () async {
+    final response = Completer<http.Response>();
+    final bloc = testDeviceBloc((r) async =>
+        r.method == 'GET' ? jsonResponse([deviceJson()]) : response.future);
     await loadDevices(bloc);
     final pending =
-        waitForDeviceState(bloc, (state) => state.updatingDeviceId != null);
+        waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isNotEmpty);
     bloc.add(
         DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
-    bloc.add(DeviceStateUpdateRequested(
-        id: 'device-001', updates: {'brightness': 75}));
     await pending;
-    await Future<void>.delayed(Duration.zero);
-    expect(writes, 1);
-    final finished = waitForDeviceState(
-        bloc,
-        (state) =>
-            state.updatingDeviceId == null &&
-            state.devices.first.state['brightness'] == 75);
-    firstResponse.complete(jsonResponse(deviceJson(power: true)));
-    await finished;
-    expect(writes, 2);
-    expect(bloc.state.devices.single.state['power'], isTrue);
+    final received = waitForDeviceState(
+        bloc, (s) => s.devices.single.state['brightness'] == 80);
+    bloc.add(DeviceRealtimeReceived(DeviceMessage(
+        deviceId: 'device-001', updates: {'power': false, 'brightness': 80})));
+    await received;
+    expect(bloc.state.pendingDeviceIds, contains('device-001'));
+    final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
+    response.complete(jsonResponse(deviceJson(power: true, brightness: 40)));
+    await saved;
+    expect(bloc.state.devices.single.state['power'], false);
+    expect(bloc.state.devices.single.state['brightness'], 80);
+    expect(bloc.state.pendingDeviceIds, isEmpty);
+    expect(bloc.state.updateError, isNull);
+  });
+
+  test('an HTTP timeout clears the pending update without resending', () async {
+    var patches = 0;
+    var gets = 0;
+    final bloc = testDeviceBloc((r) async {
+      if (r.method == 'GET') {
+        gets++;
+        return jsonResponse([deviceJson()]);
+      }
+      expect(r.method, 'PATCH');
+      patches++;
+      throw TimeoutException('HTTP request timed out');
+    });
+    await loadDevices(bloc);
+    final failed =
+        waitForDeviceState(bloc, (s) => s.updateError is TimeoutException);
+    bloc.add(
+        DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
+    await failed;
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(bloc.state.pendingDeviceIds, isEmpty);
+    expect(bloc.state.devices.single.state['power'], false);
+    expect(patches, 1);
+    expect(gets, 1);
+  });
+
+  test('a PATCH response for another device cannot replace the loaded state',
+      () async {
+    final bloc = testDeviceBloc((r) async => r.method == 'GET'
+        ? jsonResponse([deviceJson()])
+        : jsonResponse(deviceJson(id: 'device-other', power: true)));
+    await loadDevices(bloc);
+    final failed =
+        waitForDeviceState(bloc, (s) => s.updateError is FormatException);
+    bloc.add(
+        DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
+    await failed;
+    expect(bloc.state.devices.single.id, 'device-001');
+    expect(bloc.state.devices.single.state['power'], false);
+    expect(bloc.state.pendingDeviceIds, isEmpty);
   });
 
   test('creating a device appends the server response after POST succeeds',

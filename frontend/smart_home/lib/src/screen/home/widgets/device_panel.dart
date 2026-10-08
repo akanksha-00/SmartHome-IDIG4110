@@ -162,17 +162,33 @@ class _DevicePanelState extends State<DevicePanel> {
                           itemCount: visibleDevices.length,
                           itemBuilder: (context, index) {
                             final device = visibleDevices[index];
-                            return ApiDeviceCard(
-                              key: ValueKey(device.id),
-                              device: device,
-                              subtitle: _subtitle(device),
-                              isUpdating: state.updatingDeviceId == device.id ||
-                                  state.status == DeviceLoadStatus.loading,
-                              onStateChanged: (updates) => context
-                                  .read<DeviceBloc>()
-                                  .add(DeviceStateUpdateRequested(
-                                      id: device.id, updates: updates)),
-                            );
+                            final pending =
+                                state.pendingDeviceIds.contains(device.id);
+                            return Column(
+                                key: ValueKey(device.id),
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ApiDeviceCard(
+                                    device: device,
+                                    subtitle: _subtitle(device),
+                                    isUpdating: pending ||
+                                        state.status ==
+                                            DeviceLoadStatus.loading,
+                                    onStateChanged: (updates) => context
+                                        .read<DeviceBloc>()
+                                        .add(DeviceStateUpdateRequested(
+                                            id: device.id, updates: updates)),
+                                  ),
+                                  if (pending)
+                                    const Padding(
+                                      padding:
+                                          EdgeInsets.only(left: 16, top: 4),
+                                      child: Text('Updating…',
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey)),
+                                    ),
+                                ]);
                           },
                           separatorBuilder: (_, index) =>
                               const SizedBox(height: 12),
