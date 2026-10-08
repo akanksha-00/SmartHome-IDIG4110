@@ -58,6 +58,22 @@ class ApiClient {
     return response.bodyBytes.isEmpty ? null : _decode(response);
   }
 
+  Future<Object?> put(String url, Object body) async {
+    final response = await _client
+        .put(Uri.parse(url), headers: _jsonHeaders, body: jsonEncode(body))
+        .timeout(timeout);
+    _checkStatus(response);
+    return response.bodyBytes.isEmpty ? null : _decode(response);
+  }
+
+  Future<Object?> delete(String url) async {
+    final response = await _client
+        .delete(Uri.parse(url), headers: _jsonHeaders)
+        .timeout(timeout);
+    _checkStatus(response);
+    return response.bodyBytes.isEmpty ? null : _decode(response);
+  }
+
   Map<String, String> get _jsonHeaders => {
         ..._headers,
         'Accept': 'application/json',

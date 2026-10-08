@@ -38,6 +38,7 @@ dependencies:
   three_js: ^0.3.0
   fl_chart: ^1.2.0
   http: ^1.6.0
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
   flutter_test:

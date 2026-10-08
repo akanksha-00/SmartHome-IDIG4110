@@ -10,7 +10,6 @@ import 'package:smart_home/src/models/notifications/notification_model.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
 import 'package:smart_home/src/repositories/notification_repository.dart';
-import 'package:smart_home/src/repositories/sensor_repository.dart';
 
 Map<String, Object?> deviceJson({String type = 'fan'}) => {
       'id': 'device-1',
@@ -81,7 +80,7 @@ void main() {
       return jsonResponse(deviceJson());
     });
     await DeviceRepository(apiClient: api, houseId: 'house/a ?')
-        .fetchDeviceStatus('device/1 ?');
+        .fetchDevice('device/1 ?');
     expect(Uri.parse(ApiEndpoints.roomDevices('h/a', 'r/b')).pathSegments,
         ['api', 'v1', 'houses', 'h/a', 'rooms', 'r/b', 'devices']);
   });
@@ -95,7 +94,7 @@ void main() {
           'house_id': 'house-1',
           'room_id': null,
         }));
-    final result = await devicesWith(api).fetchDeviceStatus('sensor-1');
+    final result = await devicesWith(api).fetchDevice('sensor-1');
     expect(result.type, 'temperature_sensor');
     expect(result.roomId, isNull);
     expect(result.state, isEmpty);
@@ -160,7 +159,7 @@ void main() {
       ]);
       return jsonResponse(deviceJson());
     });
-    final result = await devicesWith(api).updateDevice(
+    final result = await devicesWith(api).updateDeviceStatus(
       id: 'device-1',
       updates: {'power': false, 'brightness': 0, 'speed': 4},
     );
@@ -177,12 +176,12 @@ void main() {
         throwsArgumentError);
     final repo = devicesWith(api);
     await expectLater(
-        repo.updateDevice(id: 'd', updates: {}), throwsArgumentError);
-    await expectLater(repo.updateDevice(id: '', updates: {'power': true}),
+        repo.updateDeviceStatus(id: 'd', updates: {}), throwsArgumentError);
+    await expectLater(repo.updateDeviceStatus(id: '', updates: {'power': true}),
         throwsArgumentError);
-    await expectLater(
-        repo.updateDevice(id: 'd', updates: {' ': 1}), throwsArgumentError);
-    await expectLater(repo.fetchDeviceStatus(''), throwsArgumentError);
+    await expectLater(repo.updateDeviceStatus(id: 'd', updates: {' ': 1}),
+        throwsArgumentError);
+    await expectLater(repo.fetchDevice(''), throwsArgumentError);
     await expectLater(repo.fetchDevices(roomId: ''), throwsArgumentError);
     await expectLater(
         repo.addDevice(id: '', name: 'X', type: 'fan'), throwsArgumentError);
@@ -205,7 +204,7 @@ void main() {
     final repo = devicesWith(mockedApi(
         (request) => jsonResponse({'detail': 'Invalid capability'}, 422)));
     await expectLater(
-        repo.updateDevice(id: 'd', updates: {'unknown': true}),
+        repo.updateDeviceStatus(id: 'd', updates: {'unknown': true}),
         throwsA(
           isA<ApiException>()
               .having((error) => error.statusCode, 'statusCode', 422),
@@ -236,41 +235,11 @@ void main() {
       calls++;
       return jsonResponse([]);
     });
-    expect(ApiEndpoints.sensorData, isNull);
     expect(ApiEndpoints.notifications, isNull);
-    await expectLater(SensorRepository(apiClient: api).fetchSensorData(),
-        throwsUnsupportedError);
     await expectLater(
         NotificationRepository(apiClient: api).fetchNotifications(),
         throwsUnsupportedError);
     expect(calls, 0);
-  });
-
-  test(
-      'draft sensor parser preserves offline null and zero when explicitly configured',
-      () async {
-    final api = mockedApi((request) {
-      final record = {
-        'id': 'r',
-        'deviceId': 's',
-        'roomId': 'living',
-        'type': 'occupancy',
-        'value': 0,
-        'isOnline': true,
-        'recordedAt': '2026-10-08T10:00:00Z'
-      };
-      return jsonResponse([
-        record,
-        {...record, 'value': null, 'isOnline': false, 'recordedAt': null}
-      ]);
-    });
-    final values = await SensorRepository(
-            apiClient: api, endpoint: 'https://example.com/test-readings')
-        .fetchSensorData();
-    expect(values[0].value, 0);
-    expect(values[0].recordedAt, DateTime.utc(2026, 10, 8, 10));
-    expect(values[1].value, isNull);
-    expect(values[1].isOnline, isFalse);
   });
 
   test('draft notification parser preserves unicode and alert severity',

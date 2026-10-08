@@ -1,16 +1,83 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:smart_home/src/config/api_endpoints.dart';
 import 'package:smart_home/src/models/devices/api_device.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/api_json.dart';
 
-/// Device operations for one house, following the published OpenAPI schema.
-class DeviceRepository {
+enum DeviceLoadState { idle, loading, loaded, failed }
+
+/// Device operations and the device cache for one house.
+class DeviceRepository extends ChangeNotifier {
   DeviceRepository({required this.apiClient, required this.houseId}) {
     if (houseId.trim().isEmpty) throw ArgumentError('House ID is required');
   }
 
   final ApiClient apiClient;
   final String houseId;
+
+  List<ApiDevice> _devices = const [];
+  DeviceLoadState _loadState = DeviceLoadState.idle;
+  Object? _loadError;
+  Future<void>? _pendingLoad;
+  bool _disposed = false;
+
+  /// The full house device cache, kept separate from room-filtered requests.
+  List<ApiDevice> get devices => _devices;
+  DeviceLoadState get loadState => _loadState;
+  Object? get loadError => _loadError;
+
+  /// Fetches and caches the house devices, exposing startup/refresh state.
+  /// Concurrent calls share the same request. A failed refresh keeps old data.
+  Future<void> loadDevices() {
+    if (_disposed) {
+      return Future.error(StateError('Device repository is disposed'));
+    }
+    final pending = _pendingLoad;
+    if (pending != null) return pending;
+
+    final completion = Completer<void>();
+    final attempt = completion.future;
+    _pendingLoad = attempt;
+    unawaited(_loadDevices().then(
+      (_) {
+        if (identical(_pendingLoad, attempt)) _pendingLoad = null;
+        completion.complete();
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        if (identical(_pendingLoad, attempt)) _pendingLoad = null;
+        completion.completeError(error, stackTrace);
+      },
+    ));
+    return attempt;
+  }
+
+  Future<void> _loadDevices() async {
+    _loadState = DeviceLoadState.loading;
+    _loadError = null;
+    notifyListeners();
+    try {
+      final loadedDevices = await fetchDevices();
+      if (_disposed) return;
+      _devices = List.unmodifiable(loadedDevices);
+      _loadState = DeviceLoadState.loaded;
+    } catch (error) {
+      if (!_disposed) {
+        _loadError = error;
+        _loadState = DeviceLoadState.failed;
+      }
+      rethrow;
+    } finally {
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
 
   Future<List<ApiDevice>> fetchDevices({String? roomId}) async {
     final endpoint = roomId == null
@@ -20,7 +87,7 @@ class DeviceRepository {
   }
 
   /// Returns the backend's state and status without assuming capability names.
-  Future<ApiDevice> fetchDeviceStatus(String id) async => _fromJson(
+  Future<ApiDevice> fetchDevice(String id) async => _fromJson(
         jsonObject(await apiClient.get(ApiEndpoints.device(houseId, id))),
       );
 
@@ -65,7 +132,28 @@ class DeviceRepository {
 
   /// Keys and value scales must match the device's declared capabilities.
   /// The server validates capability types and bounds.
-  Future<ApiDevice> updateDevice({
+  Future<ApiDevice> updateDeviceMetadata({
+    required String id,
+    String? name,
+    String? manufacturer,
+    String? model,
+    int? manufacturedYear,
+    int? installedYear,
+    String? installer,
+  }) async {
+    final response = await apiClient.put(ApiEndpoints.device(houseId, id), {
+      if (name != null) 'name': name,
+      if (manufacturer != null) 'manufacturer': manufacturer,
+      if (model != null) 'model': model,
+      if (manufacturedYear != null) 'manufactured_year': manufacturedYear,
+      if (installedYear != null) 'installed_year': installedYear,
+      if (installer != null) 'installer': installer,
+    });
+
+    return _fromJson(jsonObject(response));
+  }
+
+  Future<ApiDevice> updateDeviceStatus({
     required String id,
     required Map<String, Object?> updates,
   }) async {
@@ -79,7 +167,19 @@ class DeviceRepository {
           {'name': entry.key, 'value': entry.value}
       ],
     );
-    // The documented PATCH response is a complete DeviceResponse, not empty 204.
+
+    return _fromJson(jsonObject(response));
+  }
+
+  Future<ApiDevice> removeDevice({
+    required String id,
+    required Map<String, Object?> updates,
+  }) async {
+    if (updates.isEmpty || updates.keys.any((name) => name.trim().isEmpty)) {
+      throw ArgumentError('Supply at least one named capability update');
+    }
+    final response = await apiClient.delete(ApiEndpoints.device(houseId, id));
+
     return _fromJson(jsonObject(response));
   }
 

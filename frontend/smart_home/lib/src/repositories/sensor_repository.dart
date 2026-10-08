@@ -1,56 +1,28 @@
-import 'package:smart_home/src/config/api_endpoints.dart';
 import 'package:smart_home/src/models/sensors/sensor_reading.dart';
-import 'package:smart_home/src/repositories/api_client.dart';
-import 'package:smart_home/src/repositories/api_json.dart';
+import 'package:smart_home/src/services/web_socket_service.dart';
 
-/// Draft reading contract; the published backend has no dedicated reading route.
+/// An adapter for the eventual backend message format. Return an empty iterable
+/// for unrelated events, one reading for an update, or many for a snapshot.
+typedef SensorMessageDecoder = Iterable<SensorReading> Function(
+  Map<String, dynamic> message,
+);
+
 class SensorRepository {
-  const SensorRepository(
-      {required this.apiClient, this.endpoint = ApiEndpoints.sensorData});
+  const SensorRepository({
+    required this.socket,
+    required this.decodeMessage,
+  });
 
-  final ApiClient apiClient;
-  final String? endpoint;
+  final WebSocketService socket;
+  final SensorMessageDecoder decodeMessage;
 
-  Future<List<SensorReading>> fetchSensorData({
-    String? roomId,
-    String? deviceId,
-  }) async {
-    final url = endpoint;
-    if (url == null || url.trim().isEmpty) {
-      throw UnsupportedError('No sensor-reading endpoint is published yet');
-    }
-    final response = await apiClient.get(
-      url,
-      queryParameters: {
-        if (roomId != null) 'roomId': roomId,
-        if (deviceId != null) 'deviceId': deviceId,
-      },
-    );
-    return jsonObjects(response).map((json) {
-      if (!json.containsKey('value')) {
-        throw const FormatException('Sensor reading is missing value');
-      }
-      final value = json['value'];
-      if (value != null &&
-          value is! num &&
-          value is! bool &&
-          value is! String) {
-        throw const FormatException('Unsupported sensor value');
-      }
-      if (value is num && !value.isFinite) {
-        throw const FormatException('Sensor value must be finite');
-      }
-      return SensorReading(
-        id: jsonString(json, 'id'),
-        deviceId: jsonString(json, 'deviceId'),
-        roomId: jsonString(json, 'roomId'),
-        type: jsonString(json, 'type'),
-        value: value,
-        unit: jsonOptionalString(json, 'unit'),
-        isOnline: jsonBool(json, 'isOnline'),
-        recordedAt:
-            json['recordedAt'] == null ? null : jsonDate(json, 'recordedAt'),
-      );
-    }).toList();
-  }
+  /// All listeners share the injected socket; filtering opens no new connections.
+  Stream<SensorReading> watchSensorData({String? roomId, String? deviceId}) =>
+      socket.messages.expand(decodeMessage).where((reading) =>
+          (roomId == null || reading.roomId == roomId) &&
+          (deviceId == null || reading.deviceId == deviceId));
+
+  Future<void> connect() => socket.connect();
+
+  // The session owner disposes the shared socket, not an individual consumer.
 }
