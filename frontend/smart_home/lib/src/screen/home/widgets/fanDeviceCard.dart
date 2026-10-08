@@ -1,93 +1,58 @@
 import 'package:flutter/material.dart';
 
-class FanDeviceCard extends StatefulWidget {
-  const FanDeviceCard(
-      {super.key,
-      required this.title,
-      required this.subtitle,
-      required this.initialIsOn,
-      required this.speed,
-      this.onPowerChanged,
-      this.onSpeedChanged});
+class FanDeviceCard extends StatelessWidget {
+  const FanDeviceCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.isOn,
+    required this.speed,
+    this.speedValues = const [1, 2, 3],
+    this.onPowerChanged,
+    this.onSpeedChanged,
+  });
 
   final String title;
   final String subtitle;
-  final bool initialIsOn;
+  final bool isOn;
   final int speed;
+  final List<int> speedValues;
   final ValueChanged<bool>? onPowerChanged;
   final ValueChanged<int>? onSpeedChanged;
 
   @override
-  State<FanDeviceCard> createState() => _FanDeviceCardState();
-}
-
-class _FanDeviceCardState extends State<FanDeviceCard> {
-  late bool _isFanOn;
-  late int _speed;
-
-  @override
-  void initState() {
-    super.initState();
-    _isFanOn = widget.initialIsOn;
-    _speed = widget.speed;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Column(
-        children: [
+  Widget build(BuildContext context) => Card(
+        child: Column(children: [
           ListTile(
-            leading: Icon(
-              Icons.air,
-              size: 28,
-              color: _isFanOn
-                  ? Theme.of(context).colorScheme.primary
-                  : Colors.grey,
-            ),
-            title: Text(widget.title),
-            subtitle: Text(widget.subtitle),
-            trailing: Switch(
-              value: _isFanOn,
-              onChanged: (value) {
-                setState(() {
-                  _isFanOn = value;
-                });
-                widget.onPowerChanged?.call(value);
-              },
-            ),
+            leading: Icon(Icons.air,
+                size: 28,
+                color:
+                    isOn ? Theme.of(context).colorScheme.primary : Colors.grey),
+            title: Text(title),
+            subtitle: Text(subtitle),
+            trailing: Switch(value: isOn, onChanged: onPowerChanged),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(
-                  value: 1,
-                  label: Text('1'),
-                ),
-                ButtonSegment(
-                  value: 2,
-                  label: Text('2'),
-                ),
-                ButtonSegment(
-                  value: 3,
-                  label: Text('3'),
-                ),
-              ],
-              selected: {_speed},
-              showSelectedIcon: false,
-              onSelectionChanged: _isFanOn
-                  ? (selection) {
-                      setState(() {
-                        _speed = selection.first;
-                      });
-                      widget.onSpeedChanged?.call(selection.first);
-                    }
-                  : null,
-            ),
-          )
-        ],
-      ),
-    );
-  }
+            child: speedValues.isEmpty
+                ? Text('Speed: $speed')
+                : SegmentedButton<int>(
+                    segments: [
+                      for (final value in speedValues)
+                        ButtonSegment(value: value, label: Text('$value')),
+                    ],
+                    selected: speedValues.contains(speed) ? {speed} : {},
+                    emptySelectionAllowed: true,
+                    showSelectedIcon: false,
+                    onSelectionChanged: isOn && onSpeedChanged != null
+                        ? (selection) {
+                            if (selection.isNotEmpty) {
+                              onSpeedChanged!(selection.first);
+                            }
+                          }
+                        : null,
+                  ),
+          ),
+        ]),
+      );
 }

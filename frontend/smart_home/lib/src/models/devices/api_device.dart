@@ -13,10 +13,7 @@ class DeviceCapability {
       };
 }
 
-/// The complete API device record. Existing UI models are left unchanged.
-///
-/// Capability names, device types, and state scales are defined by the backend;
-/// retain them until a UI adapter is added during screen integration.
+/// The complete immutable device record, using the backend's capability scales.
 class ApiDevice {
   ApiDevice({
     required this.id,
@@ -49,4 +46,21 @@ class ApiDevice {
   final Map<String, DeviceCapability> capabilities;
   final Map<String, Object?> state;
   final Map<String, Object?> status;
+
+  /// A temporary local state update; the API response later replaces this record.
+  ApiDevice withState(Map<String, Object?> updates) => ApiDevice(
+        id: id,
+        name: name,
+        type: type,
+        houseId: houseId,
+        roomId: roomId,
+        manufacturer: manufacturer,
+        model: model,
+        manufacturedYear: manufacturedYear,
+        installedYear: installedYear,
+        installer: installer,
+        capabilities: capabilities,
+        state: {...state, ...updates},
+        status: status,
+      );
 }

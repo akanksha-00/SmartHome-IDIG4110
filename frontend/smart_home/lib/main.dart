@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/config/app_config.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
 import 'package:smart_home/src/screen/dashboard/dashboard.dart';
 import 'package:smart_home/src/theme/app_theme.dart';
-import 'package:smart_home/src/widgets/device_repository_scope.dart';
 import 'package:smart_home/src/widgets/device_startup_gate.dart';
 
 void main() {
@@ -44,7 +45,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void dispose() {
     if (_ownedApiClient != null) {
-      _deviceRepository.dispose();
       _ownedApiClient?.close();
     }
     super.dispose();
@@ -57,18 +57,21 @@ class _MyAppState extends State<MyApp> {
       listenable: appSettings,
       builder: (context, child) => AppSettingsScope(
         controller: appSettings,
-        child: DeviceRepositoryScope(
-          repository: _deviceRepository,
-          child: MaterialApp(
-            title: 'Smart Home',
-            theme: AppTheme.light(),
-            darkTheme: AppTheme.dark(),
-            themeMode: appSettings.themeMode,
-            home: DeviceStartupGate(
-              repository: _deviceRepository,
-              child: const Dashboard(),
+        child: RepositoryProvider<DeviceRepository>.value(
+          value: _deviceRepository,
+          child: BlocProvider(
+            create: (_) => DeviceBloc(repository: _deviceRepository)
+              ..add(const DevicesRequested()),
+            child: MaterialApp(
+              title: 'Smart Home',
+              theme: AppTheme.light(),
+              darkTheme: AppTheme.dark(),
+              themeMode: appSettings.themeMode,
+              home: const DeviceStartupGate(
+                child: Dashboard(),
+              ),
+              debugShowCheckedModeBanner: false,
             ),
-            debugShowCheckedModeBanner: false,
           ),
         ),
       ),

@@ -1,83 +1,16 @@
-import 'dart:async';
-
-import 'package:flutter/foundation.dart';
 import 'package:smart_home/src/config/api_endpoints.dart';
 import 'package:smart_home/src/models/devices/api_device.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/api_json.dart';
 
-enum DeviceLoadState { idle, loading, loaded, failed }
-
-/// Device operations and the device cache for one house.
-class DeviceRepository extends ChangeNotifier {
+/// HTTP device operations for one house. DeviceBloc owns the loaded data/state.
+class DeviceRepository {
   DeviceRepository({required this.apiClient, required this.houseId}) {
     if (houseId.trim().isEmpty) throw ArgumentError('House ID is required');
   }
 
   final ApiClient apiClient;
   final String houseId;
-
-  List<ApiDevice> _devices = const [];
-  DeviceLoadState _loadState = DeviceLoadState.idle;
-  Object? _loadError;
-  Future<void>? _pendingLoad;
-  bool _disposed = false;
-
-  /// The full house device cache, kept separate from room-filtered requests.
-  List<ApiDevice> get devices => _devices;
-  DeviceLoadState get loadState => _loadState;
-  Object? get loadError => _loadError;
-
-  /// Fetches and caches the house devices, exposing startup/refresh state.
-  /// Concurrent calls share the same request. A failed refresh keeps old data.
-  Future<void> loadDevices() {
-    if (_disposed) {
-      return Future.error(StateError('Device repository is disposed'));
-    }
-    final pending = _pendingLoad;
-    if (pending != null) return pending;
-
-    final completion = Completer<void>();
-    final attempt = completion.future;
-    _pendingLoad = attempt;
-    unawaited(_loadDevices().then(
-      (_) {
-        if (identical(_pendingLoad, attempt)) _pendingLoad = null;
-        completion.complete();
-      },
-      onError: (Object error, StackTrace stackTrace) {
-        if (identical(_pendingLoad, attempt)) _pendingLoad = null;
-        completion.completeError(error, stackTrace);
-      },
-    ));
-    return attempt;
-  }
-
-  Future<void> _loadDevices() async {
-    _loadState = DeviceLoadState.loading;
-    _loadError = null;
-    notifyListeners();
-    try {
-      final loadedDevices = await fetchDevices();
-      if (_disposed) return;
-      _devices = List.unmodifiable(loadedDevices);
-      _loadState = DeviceLoadState.loaded;
-    } catch (error) {
-      if (!_disposed) {
-        _loadError = error;
-        _loadState = DeviceLoadState.failed;
-      }
-      rethrow;
-    } finally {
-      if (!_disposed) notifyListeners();
-    }
-  }
-
-  @override
-  void dispose() {
-    _disposed = true;
-    super.dispose();
-  }
 
   Future<List<ApiDevice>> fetchDevices({String? roomId}) async {
     final endpoint = roomId == null
