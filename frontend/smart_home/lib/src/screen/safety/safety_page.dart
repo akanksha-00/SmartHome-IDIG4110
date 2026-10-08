@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/controllers/safety_controller.dart';
 import 'package:smart_home/src/dummyData/safety_data.dart';
 import 'package:smart_home/src/models/safety/safety_model.dart';
@@ -131,7 +132,11 @@ class _SafetyPageState extends State<SafetyPage> {
                           ? 'Not reported'
                           : '${device.batteryPercent}%'),
                   if (device.isOnline && device.temperatureC != null)
-                    _detailLine('Temperature', '${device.temperatureC}°C'),
+                    _detailLine(
+                        'Temperature',
+                        AppSettingsScope.of(context).formatTemperature(
+                            device.temperatureC!,
+                            decimals: 1)),
                   if (device.isOnline && device.isLocked != null)
                     _detailLine(
                         'Lock', device.isLocked! ? 'Locked' : 'Unlocked'),

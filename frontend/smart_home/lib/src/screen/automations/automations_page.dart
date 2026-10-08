@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/dummyData/automation_data.dart';
 import 'package:smart_home/src/dummyData/devicesData.dart';
 import 'package:smart_home/src/models/automations/automation_model.dart';
@@ -32,12 +33,17 @@ class _AutomationsPageState extends State<AutomationsPage> {
     super.dispose();
   }
 
+  String _triggerDescription(AutomationTrigger trigger) => trigger.type ==
+          AutomationTriggerType.temperature
+      ? 'Temperature rises above ${AppSettingsScope.of(context).formatTemperature(trigger.temperatureC)}'
+      : trigger.description;
+
   List<AutomationModel> get _matchingAutomations {
     final query = _search.trim().toLowerCase();
     return _automations.where((routine) {
       return (_floorId == 'all' || routine.floorId == _floorId) &&
           (_roomId == 'all' || routine.roomId == _roomId) &&
-          ('${routine.title} ${routine.trigger.description} '
+          ('${routine.title} ${_triggerDescription(routine.trigger)} '
                   '${routine.action.describe(_deviceTitles)} '
                   '${automationRoomLabels[routine.roomId]}')
               .toLowerCase()
@@ -347,7 +353,7 @@ class _AutomationsPageState extends State<AutomationsPage> {
               ],
             ),
           ]),
-          _ruleLine('WHEN', routine.trigger.description),
+          _ruleLine('WHEN', _triggerDescription(routine.trigger)),
           _ruleLine('THEN', routine.action.describe(_deviceTitles)),
           const SizedBox(height: 12),
           const Divider(height: 1),

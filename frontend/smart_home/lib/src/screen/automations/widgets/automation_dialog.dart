@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/dummyData/automation_data.dart';
 import 'package:smart_home/src/models/automations/automation_model.dart';
+import 'package:smart_home/src/models/settings/settings_model.dart';
 import 'package:smart_home/src/models/devices/fanDeviceModel.dart';
 import 'package:smart_home/src/models/devices/lightDeviceModel.dart';
 import 'package:smart_home/src/models/devices/smartDeviceModel.dart';
@@ -32,6 +34,8 @@ class _AutomationDialogState extends State<AutomationDialog> {
   late TimeOfDay _time;
   late bool _isEnabled;
   late Set<String> _selectedDevices;
+  late final AppSettingsController _settings;
+  late final TemperatureUnit _inputUnit;
   double _brightness = 80;
   int _speed = 2;
   String? _deviceError;
@@ -39,12 +43,16 @@ class _AutomationDialogState extends State<AutomationDialog> {
   @override
   void initState() {
     super.initState();
+    _settings = AppSettingsScope.read(context);
+    _inputUnit = _settings.temperatureUnit;
     final routine = widget.automation;
     final trigger = routine?.trigger;
     final action = routine?.action;
     _nameController = TextEditingController(text: routine?.title ?? '');
-    _temperatureController =
-        TextEditingController(text: '${trigger?.temperatureC ?? 26}');
+    _temperatureController = TextEditingController(
+        text: _settings
+            .displayedTemperature(trigger?.temperatureC ?? 26)
+            .toStringAsFixed(1));
     _roomId = routine?.roomId ?? widget.initialRoomId;
     _triggerType = trigger?.type ?? AutomationTriggerType.schedule;
     _repeat = trigger?.repeat ?? AutomationRepeat.daily;
@@ -89,6 +97,9 @@ class _AutomationDialogState extends State<AutomationDialog> {
     setState(() => _time = time);
   }
 
+  double _toCelsius(double value) =>
+      _inputUnit == TemperatureUnit.celsius ? value : (value - 32) * 5 / 9;
+
   void _save() {
     final valid = _formKey.currentState!.validate();
     _keepEligibleSelection();
@@ -109,7 +120,7 @@ class _AutomationDialogState extends State<AutomationDialog> {
         minutesOfDay: _time.hour * 60 + _time.minute,
         repeat: _repeat,
         temperatureC: _triggerType == AutomationTriggerType.temperature
-            ? double.parse(_temperatureController.text.trim())
+            ? _toCelsius(double.parse(_temperatureController.text.trim()))
             : 26,
       ),
       action: AutomationAction(
@@ -198,15 +209,22 @@ class _AutomationDialogState extends State<AutomationDialog> {
                     controller: _temperatureController,
                     keyboardType: const TextInputType.numberWithOptions(
                         decimal: true, signed: true),
-                    decoration: const InputDecoration(
-                        labelText: 'Temperature threshold', suffixText: '°C'),
+                    decoration: InputDecoration(
+                        labelText: 'Temperature threshold',
+                        suffixText: _inputUnit == TemperatureUnit.celsius
+                            ? '°C'
+                            : '°F'),
                     validator: (value) {
-                      final temperature = double.tryParse(value?.trim() ?? '');
+                      final input = double.tryParse(value?.trim() ?? '');
+                      final temperature =
+                          input == null ? null : _toCelsius(input);
                       if (temperature == null ||
                           !temperature.isFinite ||
                           temperature < -50 ||
                           temperature > 60) {
-                        return 'Enter a temperature between −50 and 60°C';
+                        return _inputUnit == TemperatureUnit.celsius
+                            ? 'Enter a temperature between −50 and 60°C'
+                            : 'Enter a temperature between −58 and 140°F';
                       }
                       return null;
                     },

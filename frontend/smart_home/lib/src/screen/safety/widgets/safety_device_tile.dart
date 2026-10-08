@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/dummyData/safety_data.dart';
 import 'package:smart_home/src/models/safety/safety_model.dart';
 
@@ -68,7 +69,8 @@ class SafetyDeviceTile extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           if (device.isOnline && device.temperatureC != null)
-            Text('${device.temperatureC!.toStringAsFixed(0)}°C'),
+            Text(AppSettingsScope.of(context)
+                .formatTemperature(device.temperatureC!)),
           SafetyStateBadge(device: device),
           if (device.isOnline && device.isLocked != null)
             Container(

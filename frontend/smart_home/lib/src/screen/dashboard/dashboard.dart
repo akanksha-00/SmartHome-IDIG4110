@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/screen/automations/automations_page.dart';
 import 'package:smart_home/src/screen/safety/safety_page.dart';
 import 'package:smart_home/src/screen/home/homePage.dart';
 import 'package:smart_home/src/screen/settings/settingsPage.dart';
+import 'package:smart_home/src/screen/settings/widgets/settings_dialogs.dart';
 import 'package:smart_home/src/screen/energy/energyPage.dart';
 
 class Dashboard extends StatefulWidget {
@@ -50,23 +52,23 @@ class _DashboardState extends State<Dashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final selectedDestination = _destinations[_selectedIndex];
-    const user = "Alex";
+    final settings = AppSettingsScope.of(context);
+    final user = settings.profile.name;
 
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 80,
-        title: const Row(
+        title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.home_outlined,
                   color: Colors.amber,
                   size: 32,
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Text('Welcome, $user'),
               ],
             ),
@@ -75,16 +77,17 @@ class _DashboardState extends State<Dashboard> {
               children: [
                 Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.thermostat_outlined,
                       color: Colors.amber,
                       size: 26,
                     ),
-                    SizedBox(width: 8),
-                    Text('22°C Sunny', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Text('${settings.formatTemperature(22)} Sunny',
+                        style: const TextStyle(fontSize: 14)),
                   ],
                 ),
-                SizedBox(
+                const SizedBox(
                   height: 28,
                   child: VerticalDivider(
                     width: 32,
@@ -92,12 +95,12 @@ class _DashboardState extends State<Dashboard> {
                     color: Colors.grey,
                   ),
                 ),
-                Text(
+                const Text(
                   'Sat, 26 Sep',
                   style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
-                SizedBox(width: 16),
-                Text(
+                const SizedBox(width: 16),
+                const Text(
                   '2:29 PM',
                   style: TextStyle(fontSize: 14, color: Colors.grey),
                 ),
@@ -151,7 +154,8 @@ class _DashboardState extends State<Dashboard> {
                   padding: const EdgeInsets.only(bottom: 24),
                   child: TextButton(
                     onPressed: () {
-                      // We'll add the profile page later.
+                      setState(() => _selectedIndex = 4);
+                      showProfileSettingsDialog(context, settings);
                     },
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,

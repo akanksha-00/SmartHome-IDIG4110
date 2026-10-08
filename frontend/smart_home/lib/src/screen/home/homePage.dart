@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/dummyData/devicesData.dart';
 import 'package:smart_home/src/models/devices/fanDeviceModel.dart';
 import 'package:smart_home/src/models/devices/lightDeviceModel.dart';
@@ -167,7 +168,8 @@ class _HomePageState extends State<HomePage> {
               _buildRoomStatRow(
                 icon: Icons.thermostat,
                 label: 'Temperature',
-                value: '${environment.temperature.toStringAsFixed(1)}°C',
+                value: AppSettingsScope.of(context)
+                    .formatTemperature(environment.temperature, decimals: 1),
               ),
               const SizedBox(height: 14),
               _buildRoomStatRow(
