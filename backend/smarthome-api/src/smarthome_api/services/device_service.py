@@ -1,8 +1,8 @@
 from smarthome_api.repositories.device_repository import DeviceRepository
 from smarthome_api.repositories.house_repository import HouseRepository
 from smarthome_api.repositories.room_repository import RoomRepository
-
-
+from smarthome_api.services.threshold_service import evaluate_threshold
+from smarthome_api.websocket.manager import manager
 device_repository = DeviceRepository()
 house_repository = HouseRepository()
 room_repository = RoomRepository()
@@ -226,8 +226,82 @@ def update_device_state(
         device_id,
         state,
     )
+async def handle_device_state(
+    house_id: str,
+    device_id: str,
+    state: dict,
+):
+    device = device_repository.get_by_id(
+        house_id,
+        device_id,
+    )
 
+    if device is None:
+        return None
 
+    updated_device = update_device_state(
+        house_id,
+        device_id,
+        state,
+    )
+
+    thresholds = device.get(
+        "thresholds",
+        {},
+    )
+
+    alerts = []
+
+    for name, value in state.items():
+
+        threshold = thresholds.get(name)
+
+        if threshold is None:
+            continue
+
+        alert = evaluate_threshold(
+            value,
+            threshold,
+        )
+
+        if not alert:
+            continue
+
+        notification_message = threshold.get(
+            "notification_message"
+        )
+
+        if notification_message:
+            notification_message = notification_message.format(
+                event=name,
+                value=value,
+                device_name=device.get("name"),
+                room_name=device.get("room_id"),
+            )
+
+        alerts.append(
+            {
+                "capability": name,
+                "value": value,
+                "notification_message": notification_message,
+            }
+        )
+
+    # Broadcast the accepted state to connected clients.
+    await manager.broadcast(
+        house_id,
+        {
+            "type": "device_state",
+            "device_id": device_id,
+            "state": state,
+        },
+    )
+
+    return {
+        "accepted": True,
+        "device": updated_device,
+        "alerts": alerts,
+    }
 # ==================================================
 # DEVICE STATUS
 # ==================================================
@@ -300,3 +374,91 @@ def unassign_device_from_room(
         house_id,
         device_id,
     )
+
+
+
+
+def handle_device_event(
+    house_id: str,
+    device_id: str,
+    event: str,
+    value,
+):
+    device = device_repository.get_by_id(
+        house_id,
+        device_id,
+    )
+
+    if device is None:
+        print(
+            f"Ignoring MQTT event: "
+            f"device '{device_id}' does not exist"
+        )
+        return None
+
+    capabilities = device.get("capabilities", {})
+
+    if event not in capabilities:
+        print(
+            f"Ignoring MQTT event: "
+            f"device '{device_id}' does not support '{event}'"
+        )
+        return None
+
+    # Validate the event value using existing
+    # capability validation.
+    try:
+        updated_device = update_device_state(
+            house_id,
+            device_id,
+            {event: value},
+        )
+    except ValueError as exc:
+        print(
+            f"Ignoring MQTT event: "
+            f"invalid value for '{event}': {exc}"
+        )
+        return None
+
+    # Get threshold configuration
+    thresholds = device.get("thresholds", {})
+    threshold = thresholds.get(event)
+
+    # No threshold configured
+    if threshold is None:
+        return {
+            "accepted": True,
+            "alert": False,
+            "device": updated_device,
+            "event": event,
+            "value": value,
+            "notification_message": None,
+        }
+
+    # Evaluate threshold
+    alert = evaluate_threshold(
+        value,
+        threshold,
+    )
+
+    # Build dynamic notification message
+    notification_message = threshold.get(
+        "notification_message"
+    )
+
+    if alert and notification_message:
+        notification_message = notification_message.format(
+            event=event,
+            value=value,
+            device_name=device.get("name"),
+            room_name=device.get("room_id"),
+        )
+
+    return {
+        "accepted": True,
+        "alert": alert,
+        "device": updated_device,
+        "event": event,
+        "value": value,
+        "notification_message": notification_message,
+    }

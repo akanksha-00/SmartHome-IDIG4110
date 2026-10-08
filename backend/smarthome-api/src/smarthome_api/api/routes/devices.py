@@ -1,5 +1,11 @@
 from fastapi import APIRouter, HTTPException
 
+from smarthome_api.schemas.mqtt import DeviceCommand
+
+from smarthome_api.services.device_command_service import (
+    send_device_command,
+)
+
 from smarthome_api.schemas.device import (
     DeviceCapabilityUpdate,
     DeviceCreate,
@@ -48,29 +54,6 @@ async def get_devices(
     return result
 
 
-@router.get(
-    "/{device_id}",
-    response_model=DeviceResponse,
-    response_model_exclude_none=True,
-)
-async def get_device_by_id(
-    house_id: str,
-    device_id: str,
-):
-    result = get_device(
-        house_id,
-        device_id,
-    )
-
-    if result is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Device not found",
-        )
-
-    return result
-
-
 # ==================================================
 # CREATE DEVICE
 # ==================================================
@@ -96,6 +79,79 @@ async def create_new_device(
         raise HTTPException(
             status_code=404,
             detail="House not found",
+        )
+
+    return result
+
+
+# ==================================================
+# DEVICE COMMAND
+# ==================================================
+
+@router.post(
+    "/{device_id}/command",
+)
+async def send_command(
+    house_id: str,
+    device_id: str,
+    command: DeviceCommand,
+):
+    """
+    Send a command to a device through MQTT.
+
+    Example:
+
+    {
+        "state": {
+            "power": true,
+            "brightness": 70
+        }
+    }
+
+    FastAPI validates the command and publishes it to:
+
+    smarthome/{house_id}/{device_id}/command
+
+    The device should then report its actual state
+    through the MQTT state topic.
+    """
+
+    try:
+        return send_device_command(
+            house_id=house_id,
+            device_id=device_id,
+            state=command.state,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+
+
+# ==================================================
+# GET DEVICE BY ID
+# ==================================================
+
+@router.get(
+    "/{device_id}",
+    response_model=DeviceResponse,
+    response_model_exclude_none=True,
+)
+async def get_device_by_id(
+    house_id: str,
+    device_id: str,
+):
+    result = get_device(
+        house_id,
+        device_id,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Device not found",
         )
 
     return result
@@ -203,6 +259,8 @@ async def patch_device_state(
         )
 
     return result
+
+
 # ==================================================
 # DELETE DEVICE
 # ==================================================
@@ -287,3 +345,4 @@ async def unassign_device(
         )
 
     return result
+print("DEVICE ROUTER LOADED")
