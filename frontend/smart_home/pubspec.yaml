@@ -37,6 +37,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   three_js: ^0.3.0
   fl_chart: ^1.2.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
