@@ -378,7 +378,7 @@ def unassign_device_from_room(
 
 
 
-def handle_device_event(
+async def handle_device_event(
     house_id: str,
     device_id: str,
     event: str,
@@ -424,35 +424,41 @@ def handle_device_event(
     thresholds = device.get("thresholds", {})
     threshold = thresholds.get(event)
 
-    # No threshold configured
-    if threshold is None:
-        return {
-            "accepted": True,
-            "alert": False,
-            "device": updated_device,
+    alert = False
+    notification_message = None
+
+    # Evaluate threshold if one is configured
+    if threshold is not None:
+        alert = evaluate_threshold(
+            value,
+            threshold,
+        )
+
+        # Build dynamic notification message
+        notification_message = threshold.get(
+            "notification_message"
+        )
+
+        if alert and notification_message:
+            notification_message = notification_message.format(
+                event=event,
+                value=value,
+                device_name=device.get("name"),
+                room_name=device.get("room_id"),
+            )
+
+    # Broadcast every accepted event
+    await manager.broadcast(
+        house_id,
+        {
+            "type": "device_event",
+            "device_id": device_id,
             "event": event,
             "value": value,
-            "notification_message": None,
-        }
-
-    # Evaluate threshold
-    alert = evaluate_threshold(
-        value,
-        threshold,
+            "alert": alert,
+            "notification_message": notification_message,
+        },
     )
-
-    # Build dynamic notification message
-    notification_message = threshold.get(
-        "notification_message"
-    )
-
-    if alert and notification_message:
-        notification_message = notification_message.format(
-            event=event,
-            value=value,
-            device_name=device.get("name"),
-            room_name=device.get("room_id"),
-        )
 
     return {
         "accepted": True,

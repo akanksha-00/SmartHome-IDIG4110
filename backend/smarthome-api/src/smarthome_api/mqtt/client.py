@@ -1,4 +1,5 @@
 import json
+import os
 
 from fastapi_mqtt import FastMQTT, MQTTConfig
 
@@ -19,8 +20,8 @@ from smarthome_api.services.device_service import (
 
 
 mqtt_config = MQTTConfig(
-    host="localhost",
-    port=1883,
+    host=os.getenv("MQTT_HOST", "localhost"),
+    port=int(os.getenv("MQTT_PORT", "1883")),
 )
 
 mqtt = FastMQTT(config=mqtt_config)
@@ -94,7 +95,7 @@ async def on_message(
 
             return
 
-        result = handle_device_event(
+        result = await handle_device_event(
             house_id=house_id,
             device_id=device_id,
             event=message.event,
@@ -210,6 +211,10 @@ def publish(
     topic: str,
     message: str,
 ):
+    print(f"MQTT PUBLISH: {topic}")
+    print(f"MQTT PAYLOAD: {message}")
+    print(f"MQTT CONNECTED: {mqtt.client.is_connected}")
+
     mqtt.publish(
         topic,
         message,
