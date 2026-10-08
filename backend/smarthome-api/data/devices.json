@@ -20,9 +20,10 @@
         "max": 100
       }
     },
+    "thresholds": {},
     "state": {
-      "power": false,
-      "brightness": 4
+      "power": true,
+      "brightness": 80
     },
     "status": {
       "operational": true
@@ -52,10 +53,63 @@
         "type": "boolean"
       }
     },
+    "thresholds": {},
     "state": {
       "power": true,
-      "speed": 3,
+      "speed": 4,
       "oscillation": false
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-003",
+    "name": "Smoke Detector",
+    "type": "smoke_detector",
+    "house_id": "house-001",
+    "room_id": "Bedroom",
+    "capabilities": {
+      "smoke": {
+        "type": "boolean"
+      }
+    },
+    "thresholds": {
+      "smoke": {
+        "operator": "==",
+        "value": true,
+        "notification_message": "{event} detected in {room_name}!"
+      }
+    },
+    "state": {
+      "smoke": false
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-004",
+    "name": "Temperature Sensor",
+    "type": "temperature_sensor",
+    "house_id": "house-001",
+    "room_id": "living-room",
+    "capabilities": {
+      "temperature": {
+        "type": "number",
+        "min": -40,
+        "max": 100
+      }
+    },
+    "thresholds": {
+      "temperature": {
+        "operator": ">",
+        "value": 30,
+        "notification_message": "Temperature is {value}°C in {room_name}!"
+      }
+    },
+    "state": {
+      "temperature": 35
     },
     "status": {
       "operational": true
