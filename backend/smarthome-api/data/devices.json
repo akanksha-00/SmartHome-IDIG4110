@@ -20,10 +20,9 @@
         "max": 100
       }
     },
-    "thresholds": {},
     "state": {
       "power": true,
-      "brightness": 80
+      "brightness": 0
     },
     "status": {
       "operational": true
@@ -53,10 +52,9 @@
         "type": "boolean"
       }
     },
-    "thresholds": {},
     "state": {
-      "power": true,
-      "speed": 4,
+      "power": false,
+      "speed": 5,
       "oscillation": false
     },
     "status": {
@@ -65,10 +63,232 @@
   },
   {
     "id": "device-003",
+    "name": "TV Plug",
+    "type": "plug",
+    "house_id": "house-001",
+    "room_id": "living-room",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      }
+    },
+    "state": {
+      "power": false
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-004",
+    "name": "Kitchen Ceiling Light",
+    "type": "light",
+    "house_id": "house-001",
+    "room_id": "kitchen",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "brightness": {
+        "type": "integer",
+        "min": 0,
+        "max": 100
+      }
+    },
+    "state": {
+      "power": false,
+      "brightness": 4
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-005",
+    "name": "Extractor Fan",
+    "type": "fan",
+    "house_id": "house-001",
+    "room_id": "kitchen",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "speed": {
+        "type": "integer",
+        "min": 1,
+        "max": 3
+      }
+    },
+    "state": {
+      "power": false,
+      "speed": 1
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-006",
+    "name": "Coffee Machine Plug",
+    "type": "plug",
+    "house_id": "house-001",
+    "room_id": "kitchen",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      }
+    },
+    "state": {
+      "power": false
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-007",
+    "name": "Bedroom Ceiling Light",
+    "type": "light",
+    "house_id": "house-001",
+    "room_id": "bedroom",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "brightness": {
+        "type": "integer",
+        "min": 0,
+        "max": 100
+      }
+    },
+    "state": {
+      "power": false,
+      "brightness": 60
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-008",
+    "name": "Bedroom Fan",
+    "type": "fan",
+    "house_id": "house-001",
+    "room_id": "bedroom",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "speed": {
+        "type": "integer",
+        "min": 1,
+        "max": 3
+      }
+    },
+    "state": {
+      "power": true,
+      "speed": 2
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-009",
+    "name": "Bedside Plug",
+    "type": "plug",
+    "house_id": "house-001",
+    "room_id": "bedroom",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      }
+    },
+    "state": {
+      "power": false
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-010",
+    "name": "Bathroom Ceiling Light",
+    "type": "light",
+    "house_id": "house-001",
+    "room_id": "bathroom1",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "brightness": {
+        "type": "integer",
+        "min": 0,
+        "max": 100
+      }
+    },
+    "state": {
+      "power": false,
+      "brightness": 80
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-011",
+    "name": "Mirror Light",
+    "type": "light",
+    "house_id": "house-001",
+    "room_id": "bathroom1",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "brightness": {
+        "type": "integer",
+        "min": 0,
+        "max": 100
+      }
+    },
+    "state": {
+      "power": true,
+      "brightness": 65
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-012",
+    "name": "Bathroom Exhaust Fan",
+    "type": "fan",
+    "house_id": "house-001",
+    "room_id": "bathroom1",
+    "capabilities": {
+      "power": {
+        "type": "boolean"
+      },
+      "speed": {
+        "type": "integer",
+        "min": 1,
+        "max": 3
+      }
+    },
+    "state": {
+      "power": false,
+      "speed": 1
+    },
+    "status": {
+      "operational": true
+    }
+  },
+  {
+    "id": "device-013",
     "name": "Smoke Detector",
     "type": "smoke_detector",
     "house_id": "house-001",
-    "room_id": "Bedroom",
+    "room_id": "bedroom",
     "capabilities": {
       "smoke": {
         "type": "boolean"
@@ -89,7 +309,7 @@
     }
   },
   {
-    "id": "device-004",
+    "id": "device-014",
     "name": "Temperature Sensor",
     "type": "temperature_sensor",
     "house_id": "house-001",

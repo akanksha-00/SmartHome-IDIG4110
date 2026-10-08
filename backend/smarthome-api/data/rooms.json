@@ -5,8 +5,18 @@
     "name": "Living Room"
   },
   {
+    "id": "kitchen",
+    "house_id": "house-001",
+    "name": "Kitchen"
+  },
+  {
     "id": "bedroom",
     "house_id": "house-001",
-    "name": "Bedroom"
+    "name": "Bedroom 1"
+  },
+  {
+    "id": "bathroom1",
+    "house_id": "house-001",
+    "name": "Bathroom 1"
   }
 ]
