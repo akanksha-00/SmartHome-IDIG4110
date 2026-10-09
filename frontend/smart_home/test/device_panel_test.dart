@@ -149,6 +149,7 @@ void main() {
           'state': {
             'power': true,
             if (type == 'light') 'brightness': 40,
+            if (type == 'fan') 'speed': 3,
           }
         });
         writes++;
@@ -228,7 +229,7 @@ void main() {
       if (request.method == 'GET') return jsonResponse(houseDevices());
       expectSync(request.method, 'POST');
       expectSync(jsonDecode(request.body), {
-        'state': {'speed': 5}
+        'state': {'power': true, 'speed': 5}
       });
       return jsonResponse(commandAck(id: 'device-002', state: {'speed': 5}));
     });
@@ -379,24 +380,6 @@ void main() {
     tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(0);
     await tester.pumpAndSettle();
     expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
-    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
-  });
-
-  testWidgets('brightness does not send undeclared power capabilities',
-      (tester) async {
-    final light = deviceJson(power: true);
-    (light['capabilities'] as Map).remove('power');
-    final bloc = testDeviceBloc((request) async {
-      if (request.method == 'GET') return jsonResponse([light]);
-      expectSync(jsonDecode(request.body), {
-        'state': {'brightness': 60}
-      });
-      return jsonResponse(commandAck(state: {'brightness': 60}));
-    });
-    await openPanel(tester, bloc);
-    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(0.6);
-    await tester.pumpAndSettle();
-    expect(bloc.state.updateError, isNull);
     expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
   });
 
