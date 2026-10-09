@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from pymongo import ReturnDocument
 
 from smarthome_api.db import get_database
+from smarthome_api.repositories.state_sync import is_in_sync
 from smarthome_api.repositories.mongo.mapping import (
     strip_identity,
     to_api,
@@ -324,6 +325,88 @@ class DeviceRepository:
             self._states_for([device_id]),
         )
 
+    def set_desired(
+        self,
+        house_id: str,
+        device_id: str,
+        desired: dict,
+    ):
+        """
+        Record what was asked of a device.
+
+        Called when a command is sent, before the device
+        has had a chance to answer, so `in_sync` goes false
+        until a matching report arrives.
+        """
+
+        exists = self.collection.find_one(
+            {
+                "_id": device_id,
+                "house_id": house_id,
+            },
+            {"_id": 1},
+        )
+
+        if exists is None:
+            return None
+
+        self.state_collection.update_one(
+            {"_id": device_id},
+            {
+                "$set": {
+                    "house_id": house_id,
+                    "desired_set_at": datetime.now(timezone.utc),
+                    **{
+                        f"desired.{name}": value
+                        for name, value in desired.items()
+                    },
+                },
+                "$setOnInsert": {
+                    "reported": {},
+                    "seq": 0,
+                },
+            },
+            upsert=True,
+        )
+
+        self._refresh_in_sync(device_id)
+
+        return self.get_by_id(
+            house_id,
+            device_id,
+        )
+
+    def _refresh_in_sync(
+        self,
+        device_id: str,
+    ) -> None:
+        """
+        Recompute the flag after either side changes.
+
+        Stored rather than computed on read so that
+        "everything currently out of sync in this house" is
+        one indexed query.
+        """
+
+        state = self.state_collection.find_one(
+            {"_id": device_id}
+        )
+
+        if state is None:
+            return
+
+        self.state_collection.update_one(
+            {"_id": device_id},
+            {
+                "$set": {
+                    "in_sync": is_in_sync(
+                        state.get("reported"),
+                        state.get("desired"),
+                    )
+                }
+            },
+        )
+
     def _write_state(
         self,
         device_id: str,
@@ -362,6 +445,8 @@ class DeviceRepository:
             upsert=True,
         )
 
+        self._refresh_in_sync(device_id)
+
     def _states_for(
         self,
         device_ids: list[str],
@@ -395,6 +480,11 @@ class DeviceRepository:
 
         state = states.get(device["id"], {})
 
+        # `state` stays the reported values, so existing
+        # callers see exactly what they saw before the
+        # split. `desired` and `in_sync` are additions.
         device["state"] = state.get("reported", {})
+        device["desired"] = state.get("desired", {})
+        device["in_sync"] = state.get("in_sync", True)
 
         return device
