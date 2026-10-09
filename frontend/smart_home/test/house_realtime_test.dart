@@ -220,6 +220,75 @@ void main() {
     expect(bloc.state.updateError, isNull);
   });
 
+  test('refresh keeps optimistic values while PATCH is still in flight',
+      () async {
+    final patchResponse = Completer<http.Response>();
+    final refreshResponse = Completer<http.Response>();
+    var gets = 0;
+    final bloc = testDeviceBloc((r) async {
+      if (r.method == 'GET') {
+        return ++gets == 1
+            ? jsonResponse([deviceJson()])
+            : refreshResponse.future;
+      }
+      return patchResponse.future;
+    });
+    await loadDevices(bloc);
+    final pending =
+        waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isNotEmpty);
+    bloc.add(
+        DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
+    await pending;
+    final refreshing =
+        waitForDeviceState(bloc, (s) => s.status == DeviceLoadStatus.loading);
+    bloc.add(const DevicesRequested(force: true));
+    await refreshing;
+    final loaded =
+        waitForDeviceState(bloc, (s) => s.status == DeviceLoadStatus.loaded);
+    refreshResponse.complete(jsonResponse([deviceJson()]));
+    await loaded;
+    expect(bloc.state.devices.single.state['power'], true);
+    expect(bloc.state.pendingDeviceIds, {'device-001'});
+    final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
+    patchResponse.complete(jsonResponse(deviceJson(power: true)));
+    await saved;
+    expect(bloc.state.devices.single.state['power'], true);
+  });
+
+  test('a rollback survives a concurrent stale refresh', () async {
+    final patchResponse = Completer<http.Response>();
+    final refreshResponse = Completer<http.Response>();
+    var gets = 0;
+    final bloc = testDeviceBloc((r) async {
+      if (r.method == 'GET') {
+        return ++gets == 1
+            ? jsonResponse([deviceJson()])
+            : refreshResponse.future;
+      }
+      return patchResponse.future;
+    });
+    await loadDevices(bloc);
+    final pending =
+        waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isNotEmpty);
+    bloc.add(DeviceStateUpdateRequested(
+        id: 'device-001', updates: {'brightness': 80}));
+    await pending;
+    final refreshing =
+        waitForDeviceState(bloc, (s) => s.status == DeviceLoadStatus.loading);
+    bloc.add(const DevicesRequested(force: true));
+    await refreshing;
+    final failed = waitForDeviceState(bloc, (s) => s.updateError != null);
+    patchResponse.complete(http.Response('Unavailable', 503));
+    await failed;
+    expect(bloc.state.devices.single.state['brightness'], 40);
+    final loaded =
+        waitForDeviceState(bloc, (s) => s.status == DeviceLoadStatus.loaded);
+    refreshResponse.complete(jsonResponse([deviceJson(brightness: 25)]));
+    await loaded;
+    expect(bloc.state.devices.single.state['brightness'], 40);
+    expect(bloc.state.pendingDeviceIds, isEmpty);
+  });
+
   test('reports during initial GET win over the older HTTP snapshot', () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((_) => response.future);
@@ -369,7 +438,10 @@ void main() {
     await loadDevices(bloc);
     expect(bloc.state.connection, isNot(SocketConnectionState.connected));
     final saved = waitForDeviceState(
-        bloc, (s) => s.devices.single.state['power'] == true);
+        bloc,
+        (s) =>
+            s.devices.single.state['power'] == true &&
+            s.pendingDeviceIds.isEmpty);
     bloc.add(
         DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
     await saved;

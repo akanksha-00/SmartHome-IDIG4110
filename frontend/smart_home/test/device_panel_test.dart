@@ -80,7 +80,7 @@ void main() {
   });
 
   testWidgets(
-      'failed PATCH keeps card layout and switch styling stable and blocks repeat input',
+      'failed PATCH rolls back the immediate toggle without moving cards',
       (tester) async {
     final response = Completer<http.Response>();
     var writes = 0;
@@ -98,14 +98,15 @@ void main() {
     final nextBounds = tester.getRect(find.byKey(const ValueKey('device-002')));
     await tester.tap(cardSwitch('device-001'));
     await tester.pump();
-    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    expect(find.text('2 devices · 2 on'), findsOneWidget);
     expect(
         tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
     expect(
         tester.getRect(find.byKey(const ValueKey('device-001'))), cardBounds);
     expect(
         tester.getRect(find.byKey(const ValueKey('device-002'))), nextBounds);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     // Pointer and accessibility callbacks cannot queue another write.
     await tester.tap(cardSwitch('device-001'), warnIfMissed: false);
     tester.widget<Switch>(cardSwitch('device-001')).onChanged!(true);
@@ -114,6 +115,7 @@ void main() {
     response.complete(http.Response('Unavailable', 503));
     await tester.pumpAndSettle();
     expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
+    expect(find.text('2 devices · 1 on'), findsOneWidget);
     expect(
         tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
     expect(find.textContaining('Could not update devices'), findsOneWidget);
@@ -127,7 +129,8 @@ void main() {
   });
 
   for (final type in ['light', 'fan', 'plug']) {
-    testWidgets('$type toggle saves once without moving neighbouring cards',
+    testWidgets(
+        '$type toggle updates immediately and stays steady after saving',
         (tester) async {
       final response = Completer<http.Response>();
       var writes = 0;
@@ -150,10 +153,10 @@ void main() {
       await tester.tap(cardSwitch('device-001'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
+      expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
       expect(
           tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(
           tester.getRect(find.byKey(const ValueKey('device-001'))), cardBounds);
       expect(
@@ -175,7 +178,8 @@ void main() {
     });
   }
 
-  testWidgets('pending saves do not rebuild confirmed-device subscribers',
+  testWidgets(
+      'device visuals update immediately and matching saves do not redraw them',
       (tester) async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async => request.method == 'GET'
@@ -201,7 +205,8 @@ void main() {
         DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
     await tester.pump();
     expect(bloc.state.pendingDeviceIds, contains('device-001'));
-    expect(builds, 1);
+    expect(builds, 2);
+    expect(find.text('true'), findsOneWidget);
     response.complete(jsonResponse(deviceJson(power: true)));
     await tester.pumpAndSettle();
     expect(builds, 2);
@@ -263,8 +268,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(writes, 1);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
-    expect(bloc.state.devices.single.state['brightness'], 40);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(bloc.state.devices.single.state['brightness'], 60);
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
     response.complete(jsonResponse(deviceJson(power: true, brightness: 60)));
     await tester.pumpAndSettle();
     expect(bloc.state.updateError, isNull);

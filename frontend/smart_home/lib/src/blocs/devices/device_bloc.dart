@@ -14,6 +14,16 @@ import 'package:smart_home/src/services/web_socket_service.dart';
 export 'device_event.dart';
 export 'device_state.dart';
 
+class _PendingUpdate {
+  _PendingUpdate(this.previous, this.updates);
+
+  final ApiDevice previous;
+  final Map<String, Object?> updates;
+  final reports = <String, Object?>{};
+
+  Map<String, Object?> get visibleUpdates => {...updates, ...reports};
+}
+
 class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
   DeviceBloc({
     required this.repository,
@@ -22,7 +32,8 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
     // HTTP and live reports have separate queues: a slow HTTP response must
     // not hold up sensor readings or overwrite newer reported state.
     on<DevicesRequested>(_load, transformer: sequential());
-    on<DeviceStateUpdateRequested>(_update, transformer: sequential());
+    // Different devices can save independently; each device allows one save.
+    on<DeviceStateUpdateRequested>(_update, transformer: concurrent());
     on<DeviceAddRequested>(_add, transformer: sequential());
     on<DeviceRealtimeReceived>(_live);
     on<DeviceDiscovered>(_discovered);
@@ -65,10 +76,10 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
   StreamSubscription<SocketConnectionState>? _connectionSubscription;
   final _pendingRequests = <Completer<Object?>>{};
   // Reports received during PATCH win over its returned device snapshot.
-  final _pendingUpdates = <String, Map<String, Object?>>{};
+  final _pendingUpdates = <String, _PendingUpdate>{};
   final _buffer = <String, Map<String, Object?>>{};
   final _unknown = <String, List<DeviceMessage>>{};
-  final _createdDuringLoad = <ApiDevice>[];
+  final _changedDuringLoad = <ApiDevice>[];
   final _activeAlerts = <(String, String)>{};
   bool _loadingSnapshot = false;
   bool _closing = false;
@@ -103,7 +114,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
   Future<void> _load(DevicesRequested event, Emitter<DeviceState> emit) async {
     if (_closing || (state.hasLoaded && !event.force)) return;
     _loadingSnapshot = true;
-    _createdDuringLoad.clear();
+    _changedDuringLoad.clear();
     emit(state.copyWith(status: DeviceLoadStatus.loading, loadError: null));
     try {
       final devices = await _request(repository.fetchDevices());
@@ -113,7 +124,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
         throw const FormatException('Invalid house device snapshot');
       }
       final byId = {for (final device in devices) device.id: device};
-      for (final device in _createdDuringLoad) {
+      for (final device in _changedDuringLoad) {
         byId[device.id] = device;
       }
       // Reports received during GET take precedence over its snapshot.
@@ -127,6 +138,14 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
         }
       }
       _buffer.clear();
+      // A reconnect snapshot must not flash old values over a local change
+      // whose PATCH is still in flight. New live reports remain authoritative.
+      for (final entry in _pendingUpdates.entries) {
+        final device = byId[entry.key];
+        if (device != null) {
+          byId[entry.key] = device.withState(entry.value.visibleUpdates);
+        }
+      }
       emit(state.copyWith(
           devices: byId.values.toList(),
           status: DeviceLoadStatus.loaded,
@@ -141,7 +160,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
       emit(state.copyWith(status: DeviceLoadStatus.failed, loadError: error));
     } finally {
       _loadingSnapshot = false;
-      _createdDuringLoad.clear();
+      _changedDuringLoad.clear();
       if (!_closing && state.hasLoaded) {
         final buffered = _buffer.entries
             .map((entry) =>
@@ -170,21 +189,23 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
           StateError('Wait for device data to finish refreshing'), emit);
       return;
     }
-    final reports = <String, Object?>{};
-    _pendingUpdates[event.id] = reports;
+    final pending = _PendingUpdate(device, event.updates);
+    _pendingUpdates[event.id] = pending;
     emit(state.copyWith(
-        pendingDeviceIds: _pendingUpdates.keys.toSet(), updateError: null));
+        devices: _replace(device.withState(event.updates)),
+        pendingDeviceIds: _pendingUpdates.keys.toSet(),
+        updateError: null));
     try {
       final response = await _request(
           repository.updateDeviceStatus(id: event.id, updates: event.updates));
       if (emit.isDone || _closing) return;
       _checkResponse(response, event.id);
-      final saved = response.withState(reports);
+      final saved = response.withState(pending.reports);
       _pendingUpdates.remove(event.id);
       // A reconnect GET can run alongside PATCH. Its older snapshot must not
       // undo the state that the backend just saved.
       if (_loadingSnapshot) {
-        _buffer.putIfAbsent(event.id, () => {}).addAll(saved.state);
+        _changedDuringLoad.add(saved);
       }
       emit(state.copyWith(
           devices: _replace(saved),
@@ -192,12 +213,31 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
     } catch (error) {
       if (emit.isDone || _closing) return;
       _pendingUpdates.remove(event.id);
-      _updateError(error, emit);
+      final current = state.devices.where((d) => d.id == event.id).firstOrNull;
+      List<ApiDevice>? restoredDevices;
+      if (current != null) {
+        final restoredState = Map<String, Object?>.of(current.state);
+        for (final key in pending.updates.keys) {
+          // Roll back only this request's fields, retaining newer telemetry.
+          if (pending.reports.containsKey(key)) continue;
+          if (pending.previous.state.containsKey(key)) {
+            restoredState[key] = pending.previous.state[key];
+          } else {
+            restoredState.remove(key);
+          }
+        }
+        final restored = current.withState(restoredState, replace: true);
+        if (_loadingSnapshot) _changedDuringLoad.add(restored);
+        restoredDevices = _replace(restored);
+      }
+      _updateError(error, emit, devices: restoredDevices);
     }
   }
 
-  void _updateError(Object error, Emitter<DeviceState> emit) =>
+  void _updateError(Object error, Emitter<DeviceState> emit,
+          {List<ApiDevice>? devices}) =>
       emit(state.copyWith(
+        devices: devices,
         pendingDeviceIds: _pendingUpdates.keys.toSet(),
         updateError: error,
         updateErrorRevision: state.updateErrorRevision + 1,
@@ -218,7 +258,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
       _unknown[device.id]?.add(message);
       final changed = device.withState(message.updates);
       devices = _replace(changed);
-      _pendingUpdates[device.id]?.addAll(message.updates);
+      _pendingUpdates[device.id]?.reports.addAll(message.updates);
     } else if (!buffering) {
       final pending = _unknown[message.deviceId];
       if (pending != null) {
@@ -296,7 +336,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
     for (final message in event.messages) {
       device = device.withState(message.updates);
     }
-    if (_loadingSnapshot) _createdDuringLoad.add(device);
+    if (_loadingSnapshot) _changedDuringLoad.add(device);
     final exists = state.devices.any((d) => d.id == device.id);
     emit(state.copyWith(
         devices: exists ? _replace(device) : [...state.devices, device]));
@@ -323,7 +363,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
       if (emit.isDone || _closing) return;
       final existing =
           state.devices.where((device) => device.id == saved.id).firstOrNull;
-      if (_loadingSnapshot) _createdDuringLoad.add(existing ?? saved);
+      if (_loadingSnapshot) _changedDuringLoad.add(existing ?? saved);
       emit(state.copyWith(
           devices: existing != null ? state.devices : [...state.devices, saved],
           isAdding: false,
@@ -334,10 +374,16 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
     }
   }
 
-  List<ApiDevice> _replace(ApiDevice changed) => [
-        for (final device in state.devices)
-          device.id == changed.id ? changed : device,
-      ];
+  List<ApiDevice> _replace(ApiDevice changed) {
+    final current = state.devices.where((d) => d.id == changed.id).firstOrNull;
+    if (current != null && current.hasSameValuesAs(changed)) {
+      return state.devices;
+    }
+    return [
+      for (final device in state.devices)
+        device.id == changed.id ? changed : device,
+    ];
+  }
 
   void _checkResponse(ApiDevice device, String expectedId) {
     if (device.id != expectedId || device.houseId != repository.houseId) {

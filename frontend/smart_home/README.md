@@ -47,10 +47,12 @@ For another server, use `--dart-define=SMART_HOME_WS_BASE_URL=wss://your-server`
   a fresh device snapshot on reconnection. Cached devices stay visible.
   Returning to the app also refreshes device data.
 - Switches, brightness and fan speed use HTTP PATCH with the backend's array
-  of `{name, value}` capability updates. A thin progress bar inside the card
-  indicates saving without moving other cards or changing control colours.
-  Repeat input is blocked until the response returns, then controls use the
-  saved device state. Request-only changes do not refresh the 3D device layer.
+  of `{name, value}` capability updates. Controls, counts and 3D markers update
+  immediately while the request saves in the background, with no progress bar
+  or layout change. A failed request restores only the changed values and shows
+  an error; newer WebSocket readings are retained. Repeat input for that device
+  is blocked until saving finishes; other devices can save independently.
+  Reconnecting during a save keeps its local values until the request finishes.
   This works with dummy devices and does not require a live WebSocket connection
   or an MQTT responder.
   Reports arriving during PATCH take precedence over its response snapshot.

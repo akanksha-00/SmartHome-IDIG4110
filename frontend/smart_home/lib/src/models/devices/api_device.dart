@@ -47,8 +47,37 @@ class ApiDevice {
   final Map<String, Object?> state;
   final Map<String, Object?> status;
 
-  /// A temporary local state update; the API response later replaces this record.
-  ApiDevice withState(Map<String, Object?> updates) => ApiDevice(
+  /// A matching save response should not redraw unchanged device visuals.
+  bool hasSameValuesAs(ApiDevice other) =>
+      id == other.id &&
+      name == other.name &&
+      type == other.type &&
+      houseId == other.houseId &&
+      roomId == other.roomId &&
+      manufacturer == other.manufacturer &&
+      model == other.model &&
+      manufacturedYear == other.manufacturedYear &&
+      installedYear == other.installedYear &&
+      installer == other.installer &&
+      _sameValues(state, other.state) &&
+      _sameValues(status, other.status) &&
+      capabilities.length == other.capabilities.length &&
+      capabilities.entries.every((entry) {
+        final next = other.capabilities[entry.key];
+        return next != null &&
+            entry.value.type == next.type &&
+            entry.value.min == next.min &&
+            entry.value.max == next.max;
+      });
+
+  static bool _sameValues(Map<String, Object?> a, Map<String, Object?> b) =>
+      a.length == b.length &&
+      a.entries.every(
+          (entry) => b.containsKey(entry.key) && b[entry.key] == entry.value);
+
+  /// Merges capability values, or replaces the state for an exact rollback.
+  ApiDevice withState(Map<String, Object?> updates, {bool replace = false}) =>
+      ApiDevice(
         id: id,
         name: name,
         type: type,
@@ -60,7 +89,7 @@ class ApiDevice {
         installedYear: installedYear,
         installer: installer,
         capabilities: capabilities,
-        state: {...state, ...updates},
+        state: replace ? updates : {...state, ...updates},
         status: status,
       );
 }
