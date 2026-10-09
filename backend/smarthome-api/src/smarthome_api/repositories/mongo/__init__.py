@@ -1,3 +1,6 @@
+from smarthome_api.repositories.mongo.command_repository import (
+    CommandRepository,
+)
 from smarthome_api.repositories.mongo.device_repository import (
     DeviceRepository,
 )
@@ -12,6 +15,7 @@ from smarthome_api.repositories.mongo.room_repository import (
 )
 
 __all__ = [
+    "CommandRepository",
     "DeviceRepository",
     "EventRepository",
     "HouseRepository",

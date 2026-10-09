@@ -2,7 +2,10 @@ import json
 
 from smarthome_api.mqtt.client import publish
 from smarthome_api.mqtt.topics import command_topic
-from smarthome_api.repositories.factory import device_repository
+from smarthome_api.repositories.factory import (
+    command_repository,
+    device_repository,
+)
 
 
 def validate_device_command(
@@ -75,11 +78,23 @@ def send_device_command(
     house_id: str,
     device_id: str,
     state: dict,
+    request_id: str | None = None,
 ):
     validate_device_command(
         house_id,
         device_id,
         state,
+    )
+
+    # Recorded before publishing, so a command that is sent
+    # but never confirmed still leaves a trace. "Published"
+    # and "executed" are different facts and the status
+    # keeps them apart.
+    command = command_repository.create(
+        house_id,
+        device_id,
+        state,
+        request_id=request_id,
     )
 
     topic = command_topic(
@@ -91,10 +106,26 @@ def send_device_command(
         "state": state
     })
 
-    publish(
-        topic,
-        payload,
-    )
+    try:
+        publish(
+            topic,
+            payload,
+        )
+
+    except Exception as exc:
+        # A command that never reached the broker must not
+        # look pending. Recording the failure is what keeps
+        # "we tried" and "it was sent" apart.
+        if command is not None:
+            command_repository.mark_failed(
+                command["id"],
+                "publish_failed",
+            )
+
+        raise
+
+    if command is not None:
+        command_repository.mark_dispatched(command["id"])
 
     # Record what was asked for. The device has not
     # answered yet, so the twin is knowingly out of sync
@@ -112,4 +143,8 @@ def send_device_command(
         "device_id": device_id,
         "topic": topic,
         "state": state,
+        "command_id": command["id"] if command else None,
+        "request_id": (
+            command["request_id"] if command else None
+        ),
     }

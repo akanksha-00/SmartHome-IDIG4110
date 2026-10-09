@@ -115,6 +115,8 @@ def main() -> None:
 
             if collection_name == "devices":
                 db.device_state.delete_many({})
+                db.commands.delete_many({})
+                db.events.delete_many({})
 
         inserted = 0
         skipped = 0
