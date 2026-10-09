@@ -29,6 +29,18 @@ from pathlib import Path
 # Values substituted into path parameters. They have to
 # exist in both backends for the comparison to mean
 # anything.
+# Routes where the two backends are expected to differ,
+# with the reason. Listed rather than skipped silently: an
+# unexplained exemption is how a check stops meaning
+# anything.
+KNOWN_DIFFERENCES = {
+    "/history": (
+        "the file backend records no history; its "
+        "EventRepository is a no-op by design"
+    ),
+}
+
+
 SAMPLE_IDS = {
     "house_id": "house-001",
     "room_id": "living-room",
@@ -174,8 +186,30 @@ def main() -> None:
         left = normalise(json_results.get(path))
         right = normalise(mongo_results.get(path))
 
+        reason = next(
+            (
+                why
+                for marker, why in KNOWN_DIFFERENCES.items()
+                if marker in path
+            ),
+            None,
+        )
+
         if left == right:
+
             print(f"  same  {path}")
+
+            if reason:
+                print(
+                    "        note: expected to differ, but "
+                    "does not. The exemption may be stale."
+                )
+
+            continue
+
+        if reason:
+            print(f"  ok    {path}")
+            print(f"        expected: {reason}")
             continue
 
         differences += 1
