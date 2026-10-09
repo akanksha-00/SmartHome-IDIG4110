@@ -41,6 +41,17 @@ Map<String, Object?> deviceJson({
 http.Response jsonResponse(Object body, [int status = 200]) =>
     http.Response(jsonEncode(body), status);
 
+Map<String, Object?> commandAck({
+  String id = 'device-001',
+  Map<String, Object?> state = const {},
+}) =>
+    {
+      'house_id': AppConfig.houseId,
+      'device_id': id,
+      'topic': 'smarthome/${AppConfig.houseId}/$id/command',
+      'state': state,
+    };
+
 DeviceBloc testDeviceBloc(Future<http.Response> Function(http.Request) handler,
     {HouseRealtimeRepository? realtime}) {
   final client = ApiClient(client: MockClient(handler));

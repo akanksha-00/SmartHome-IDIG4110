@@ -188,6 +188,41 @@ void main() {
     expect(calls, 0);
   });
 
+  test('commands POST typed state and accept publication acknowledgements',
+      () async {
+    final api = mockedApi((request) {
+      expect(request.method, 'POST');
+      expect(
+          request.url.path, '/api/v1/houses/house-1/devices/device-1/command');
+      expect(request.headers['content-type'], 'application/json');
+      expect(jsonDecode(request.body), {
+        'state': {'power': true, 'brightness': 70, 'speed': 2}
+      });
+      return jsonResponse({
+        'house_id': 'house-1',
+        'device_id': 'device-1',
+        'topic': 'smarthome/house-1/device-1/command',
+        'state': {'power': true, 'brightness': 70, 'speed': 2},
+      });
+    });
+    await devicesWith(api).sendCommand(
+        id: 'device-1', updates: {'power': true, 'brightness': 70, 'speed': 2});
+  });
+
+  test('commands reject acknowledgements for another house or device',
+      () async {
+    for (final ack in [
+      {'house_id': 'other-house', 'device_id': 'device-1'},
+      {'house_id': 'house-1', 'device_id': 'other-device'},
+      <String, Object?>{},
+    ]) {
+      final repo = devicesWith(mockedApi((_) => jsonResponse(ack)));
+      await expectLater(
+          repo.sendCommand(id: 'device-1', updates: {'power': true}),
+          throwsFormatException);
+    }
+  });
+
   test('HTTP errors are exposed rather than converted to empty results',
       () async {
     final repo =
@@ -285,11 +320,10 @@ void main() {
         }));
     addTearDown(api.close);
     await expectLater(
-        api.patch(ApiEndpoints.device('h', 'd'), [
-          {'name': 'power', 'value': true}
-        ]),
+        devicesWith(api).sendCommand(id: 'device-1', updates: {'power': true}),
         throwsA(isA<TimeoutException>()));
     expect(calls, 1);
-    response.complete(jsonResponse(deviceJson()));
+    response.complete(
+        jsonResponse({'house_id': 'house-1', 'device_id': 'device-1'}));
   });
 }

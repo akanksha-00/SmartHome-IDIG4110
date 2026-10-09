@@ -95,15 +95,17 @@ void main() {
     expect(bloc.state.loadError, isNull);
   });
 
-  test('a control updates immediately before PATCH returns', () async {
+  test('a control updates immediately before the command is acknowledged',
+      () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') return jsonResponse([deviceJson()]);
-      expect(request.method, 'PATCH');
-      expect(request.url.path, '/api/v1/houses/house-001/devices/device-001');
-      expect(jsonDecode(request.body), [
-        {'name': 'power', 'value': true}
-      ]);
+      expect(request.method, 'POST');
+      expect(request.url.path,
+          '/api/v1/houses/house-001/devices/device-001/command');
+      expect(jsonDecode(request.body), {
+        'state': {'power': true}
+      });
       return response.future;
     });
     await loadDevices(bloc);
@@ -115,7 +117,7 @@ void main() {
     expect(bloc.state.devices.single.state['power'], true);
     final confirmed =
         waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    response.complete(jsonResponse(deviceJson(power: true)));
+    response.complete(jsonResponse(commandAck(state: {'power': true})));
     await confirmed;
     expect(bloc.state.devices.single.state['power'], true);
     expect(bloc.state.devices.single.state['brightness'], 40);
@@ -123,7 +125,7 @@ void main() {
   });
 
   test(
-      'live sensor/state reports are processed during PATCH; failure never rolls them back',
+      'live reports are processed during commands; failure never rolls them back',
       () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async => request.method == 'GET'
@@ -205,7 +207,7 @@ void main() {
         return jsonResponse(
             [deviceJson(), deviceJson(id: 'device-002', type: 'fan')]);
       }
-      final id = r.url.pathSegments.last;
+      final id = r.url.pathSegments[r.url.pathSegments.length - 2];
       writes.add(id);
       return id == 'device-001' ? first.future : second.future;
     });
@@ -231,13 +233,13 @@ void main() {
     expect(bloc.state.pendingDeviceIds, {'device-002'});
     final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
     second.complete(
-        jsonResponse(deviceJson(id: 'device-002', type: 'fan', power: true)));
+        jsonResponse(commandAck(id: 'device-002', state: {'power': true})));
     await saved;
     expect(bloc.state.devices.last.state['power'], true);
     expect(writes, hasLength(2));
   });
 
-  test('newer live reports take precedence over the PATCH response', () async {
+  test('an acknowledgement cannot overwrite newer live reports', () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((r) async =>
         r.method == 'GET' ? jsonResponse([deviceJson()]) : response.future);
@@ -254,7 +256,8 @@ void main() {
     await received;
     expect(bloc.state.pendingDeviceIds, contains('device-001'));
     final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    response.complete(jsonResponse(deviceJson(power: true, brightness: 40)));
+    response.complete(
+        jsonResponse(commandAck(state: {'power': true, 'brightness': 40})));
     await saved;
     expect(bloc.state.devices.single.state['power'], false);
     expect(bloc.state.devices.single.state['brightness'], 80);
@@ -262,16 +265,41 @@ void main() {
     expect(bloc.state.updateError, isNull);
   });
 
+  test('a later device report replaces optimistic state after acknowledgement',
+      () async {
+    final bloc = testDeviceBloc((request) async => request.method == 'GET'
+        ? jsonResponse([deviceJson()])
+        : jsonResponse(commandAck(state: {'power': true, 'brightness': 70})));
+    await loadDevices(bloc);
+    final acknowledged = waitForDeviceState(
+        bloc,
+        (s) =>
+            s.devices.single.state['power'] == true &&
+            s.pendingDeviceIds.isEmpty);
+    bloc.add(DeviceStateUpdateRequested(
+        id: 'device-001', updates: {'power': true, 'brightness': 70}));
+    await acknowledged;
+    expect(bloc.state.devices.single.state['brightness'], 70);
+    final reported = waitForDeviceState(
+        bloc, (s) => s.devices.single.state['brightness'] == 65);
+    bloc.add(DeviceRealtimeReceived(DeviceMessage(
+        deviceId: 'device-001', updates: {'power': false, 'brightness': 65})));
+    await reported;
+    expect(bloc.state.devices.single.state['power'], false);
+    expect(bloc.state.pendingDeviceIds, isEmpty);
+    expect(bloc.state.updateError, isNull);
+  });
+
   test('an HTTP timeout clears the pending update without resending', () async {
-    var patches = 0;
+    var commands = 0;
     var gets = 0;
     final bloc = testDeviceBloc((r) async {
       if (r.method == 'GET') {
         gets++;
         return jsonResponse([deviceJson()]);
       }
-      expect(r.method, 'PATCH');
-      patches++;
+      expect(r.method, 'POST');
+      commands++;
       throw TimeoutException('HTTP request timed out');
     });
     await loadDevices(bloc);
@@ -283,15 +311,15 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(bloc.state.pendingDeviceIds, isEmpty);
     expect(bloc.state.devices.single.state['power'], false);
-    expect(patches, 1);
+    expect(commands, 1);
     expect(gets, 1);
   });
 
-  test('a PATCH response for another device cannot replace the loaded state',
+  test('an acknowledgement for another device rolls back the local update',
       () async {
     final bloc = testDeviceBloc((r) async => r.method == 'GET'
         ? jsonResponse([deviceJson()])
-        : jsonResponse(deviceJson(id: 'device-other', power: true)));
+        : jsonResponse(commandAck(id: 'device-other')));
     await loadDevices(bloc);
     final failed =
         waitForDeviceState(bloc, (s) => s.updateError is FormatException);

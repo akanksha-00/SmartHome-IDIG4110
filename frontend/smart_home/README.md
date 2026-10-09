@@ -46,18 +46,22 @@ For another server, use `--dart-define=SMART_HOME_WS_BASE_URL=wss://your-server`
 - After disconnection, the app retries with delays up to 30 seconds and fetches
   a fresh device snapshot on reconnection. Cached devices stay visible.
   Returning to the app also refreshes device data.
-- Switches, brightness and fan speed use HTTP PATCH with the backend's array
-  of `{name, value}` capability updates. Controls, counts and 3D markers update
-  immediately while the request saves in the background, with no progress bar
-  or layout change. A failed request restores only the changed values and shows
-  an error; newer WebSocket readings are retained. Repeat input for that device
-  is blocked until saving finishes; other devices can save independently.
-  Reconnecting during a save keeps its local values until the request finishes.
-  This works with dummy devices and does not require a live WebSocket connection
-  or an MQTT responder.
-  Reports arriving during PATCH take precedence over its response snapshot.
-  The current backend does not broadcast PATCH updates; other clients see them
-  on their next device refresh. Sensor readings and alerts still use WebSocket.
+- Switches, brightness and fan speed POST to the device's `/command` endpoint
+  with `{"state": {"power": true, "brightness": 70}}` (only changed capabilities
+  are sent). Boolean and numeric capability values retain their JSON types.
+  Controls, counts and 3D markers update immediately while the command publishes
+  in the background, with no progress bar or layout change. A failed HTTP request
+  restores only the changed values and shows an error; newer WebSocket readings
+  are retained. Repeat input for that device is blocked until the HTTP response;
+  other devices can publish independently. A concurrent refresh preserves a
+  command's optimistic values while its HTTP request is in flight.
+- A command response acknowledges MQTT publication, not execution or persisted
+  device state. It is never parsed as a device record. Controls become usable on
+  that acknowledgement, without waiting for a WebSocket report or MQTT timeout.
+  The device (or a simulator) must subscribe to its command topic and publish its
+  actual state to its state topic. Those reports update the backend and dashboard
+  through WebSocket. Without a responder, the optimistic value can revert on a
+  later refresh because the backend still holds the previous reported state.
 
 The backend does not replay missed events or persist notification history.
 Reconnecting restores device readings, but alerts emitted while disconnected
