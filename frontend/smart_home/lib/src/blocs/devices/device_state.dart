@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:smart_home/src/models/devices/api_device.dart';
 import 'package:smart_home/src/models/notifications/device_alert.dart';
 import 'package:smart_home/src/services/web_socket_service.dart';
@@ -5,6 +7,11 @@ import 'package:smart_home/src/services/web_socket_service.dart';
 enum DeviceLoadStatus { initial, loading, loaded, failed }
 
 const _keep = Object();
+
+// Own the backing list so request-only changes can safely reuse this snapshot.
+final class _DeviceSnapshot extends UnmodifiableListView<ApiDevice> {
+  _DeviceSnapshot(List<ApiDevice> devices) : super(List<ApiDevice>.of(devices));
+}
 
 /// The device list and all request state belong to the BLoC.
 class DeviceState {
@@ -24,7 +31,8 @@ class DeviceState {
     this.isAdding = false,
     this.addError,
     this.lastAddedDeviceId,
-  })  : devices = List.unmodifiable(devices),
+  })  : devices =
+            devices is _DeviceSnapshot ? devices : _DeviceSnapshot(devices),
         pendingDeviceIds = Set.unmodifiable(pendingDeviceIds),
         alerts = List.unmodifiable(alerts);
 

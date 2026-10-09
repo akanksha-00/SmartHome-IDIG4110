@@ -80,7 +80,7 @@ void main() {
   });
 
   testWidgets(
-      'switch sends PATCH, stays disabled while pending, and preserves actual state on failure',
+      'failed PATCH keeps card layout and switch styling stable and blocks repeat input',
       (tester) async {
     final response = Completer<http.Response>();
     var writes = 0;
@@ -94,18 +94,118 @@ void main() {
       return response.future;
     });
     await openPanel(tester, bloc);
+    final cardBounds = tester.getRect(find.byKey(const ValueKey('device-001')));
+    final nextBounds = tester.getRect(find.byKey(const ValueKey('device-002')));
     await tester.tap(cardSwitch('device-001'));
     await tester.pump();
     expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
-    expect(tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNull);
+    expect(
+        tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
+    expect(
+        tester.getRect(find.byKey(const ValueKey('device-001'))), cardBounds);
+    expect(
+        tester.getRect(find.byKey(const ValueKey('device-002'))), nextBounds);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    // Pointer and accessibility callbacks cannot queue another write.
+    await tester.tap(cardSwitch('device-001'), warnIfMissed: false);
+    tester.widget<Switch>(cardSwitch('device-001')).onChanged!(true);
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(writes, 1);
     response.complete(http.Response('Unavailable', 503));
     await tester.pumpAndSettle();
     expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
     expect(
         tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
     expect(find.textContaining('Could not update devices'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(
+        tester.getRect(find.byKey(const ValueKey('device-001'))), cardBounds);
+    expect(
+        tester.getRect(find.byKey(const ValueKey('device-002'))), nextBounds);
     expect(writes, 1);
     expect(tester.takeException(), isNull);
+  });
+
+  for (final type in ['light', 'fan', 'plug']) {
+    testWidgets('$type toggle saves once without moving neighbouring cards',
+        (tester) async {
+      final response = Completer<http.Response>();
+      var writes = 0;
+      final bloc = testDeviceBloc((request) async {
+        if (request.method == 'GET') {
+          return jsonResponse([
+            deviceJson(type: type),
+            deviceJson(id: 'device-002', name: 'Next device'),
+          ]);
+        }
+        expectSync(request.method, 'PATCH');
+        writes++;
+        return response.future;
+      });
+      await openPanel(tester, bloc);
+      final cardBounds =
+          tester.getRect(find.byKey(const ValueKey('device-001')));
+      final nextBounds =
+          tester.getRect(find.byKey(const ValueKey('device-002')));
+      await tester.tap(cardSwitch('device-001'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
+      expect(
+          tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(
+          tester.getRect(find.byKey(const ValueKey('device-001'))), cardBounds);
+      expect(
+          tester.getRect(find.byKey(const ValueKey('device-002'))), nextBounds);
+      await tester.tap(cardSwitch('device-001'), warnIfMissed: false);
+      await tester.pump();
+      expect(writes, 1);
+      response.complete(jsonResponse(deviceJson(type: type, power: true)));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(
+          tester.getRect(find.byKey(const ValueKey('device-001'))), cardBounds);
+      expect(
+          tester.getRect(find.byKey(const ValueKey('device-002'))), nextBounds);
+      expect(writes, 1);
+      expect(bloc.state.updateError, isNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('pending saves do not rebuild confirmed-device subscribers',
+      (tester) async {
+    final response = Completer<http.Response>();
+    final bloc = testDeviceBloc((request) async => request.method == 'GET'
+        ? jsonResponse([deviceJson()])
+        : response.future);
+    await loadDevices(bloc);
+    var builds = 0;
+    await tester.pumpWidget(BlocProvider.value(
+      value: bloc,
+      child: MaterialApp(
+        home: BlocBuilder<DeviceBloc, DeviceState>(
+          // The floor plan and room readings use this same data subscription.
+          buildWhen: (previous, current) => previous.devices != current.devices,
+          builder: (context, state) {
+            builds++;
+            return Text('${state.devices.single.state['power']}');
+          },
+        ),
+      ),
+    ));
+    expect(builds, 1);
+    bloc.add(
+        DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
+    await tester.pump();
+    expect(bloc.state.pendingDeviceIds, contains('device-001'));
+    expect(builds, 1);
+    response.complete(jsonResponse(deviceJson(power: true)));
+    await tester.pumpAndSettle();
+    expect(builds, 2);
+    expect(find.text('true'), findsOneWidget);
   });
 
   testWidgets('fan renders and sends all speeds declared by the API',
@@ -161,15 +261,15 @@ void main() {
     expect(bloc.state.devices.single.state['brightness'], 40);
     slider.onChangeEnd!(0.6);
     await tester.pump();
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(writes, 1);
-    expect(find.text('Updating…'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
     expect(bloc.state.devices.single.state['brightness'], 40);
     response.complete(jsonResponse(deviceJson(power: true, brightness: 60)));
     await tester.pumpAndSettle();
     expect(bloc.state.updateError, isNull);
     expect(bloc.state.pendingDeviceIds, isEmpty);
-    expect(find.text('Updating…'), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(bloc.state.devices.single.state['brightness'], 60);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
   });

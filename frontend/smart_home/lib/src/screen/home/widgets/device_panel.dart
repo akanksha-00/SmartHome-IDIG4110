@@ -164,31 +164,41 @@ class _DevicePanelState extends State<DevicePanel> {
                             final device = visibleDevices[index];
                             final pending =
                                 state.pendingDeviceIds.contains(device.id);
-                            return Column(
-                                key: ValueKey(device.id),
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  ApiDeviceCard(
+                            return Stack(key: ValueKey(device.id), children: [
+                              ExcludeFocus(
+                                excluding: pending,
+                                child: AbsorbPointer(
+                                  absorbing: pending,
+                                  child: ApiDeviceCard(
                                     device: device,
                                     subtitle: _subtitle(device),
-                                    isUpdating: pending ||
-                                        state.status ==
-                                            DeviceLoadStatus.loading,
-                                    onStateChanged: (updates) => context
-                                        .read<DeviceBloc>()
-                                        .add(DeviceStateUpdateRequested(
-                                            id: device.id, updates: updates)),
+                                    // Saving blocks input without changing
+                                    // the controls' colours or layout.
+                                    isUpdating: state.status ==
+                                        DeviceLoadStatus.loading,
+                                    onStateChanged: (updates) {
+                                      final bloc = context.read<DeviceBloc>();
+                                      if (bloc.state.pendingDeviceIds
+                                          .contains(device.id)) {
+                                        return;
+                                      }
+                                      bloc.add(DeviceStateUpdateRequested(
+                                          id: device.id, updates: updates));
+                                    },
                                   ),
-                                  if (pending)
-                                    const Padding(
-                                      padding:
-                                          EdgeInsets.only(left: 16, top: 4),
-                                      child: Text('Updating…',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey)),
-                                    ),
-                                ]);
+                                ),
+                              ),
+                              if (pending)
+                                Positioned(
+                                  left: 20,
+                                  right: 20,
+                                  bottom: 8,
+                                  child: LinearProgressIndicator(
+                                    minHeight: 2,
+                                    semanticsLabel: 'Updating ${device.name}',
+                                  ),
+                                ),
+                            ]);
                           },
                           separatorBuilder: (_, index) =>
                               const SizedBox(height: 12),

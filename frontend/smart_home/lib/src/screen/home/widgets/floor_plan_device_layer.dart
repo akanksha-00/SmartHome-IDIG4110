@@ -300,6 +300,8 @@ class FloorPlanDeviceMarker {
         floorGlow!.position.y = (-height + 0.035 * size) / size;
         object.add(floorGlow!);
       case 'fan':
+        // Hang the rotor below its mounting stem.
+        body.rotation.z = math.pi;
         body.add(rotor);
         final hub = _mesh(three.SphereGeometry(0.09, 12, 8), _activeMaterial);
         hub.position.y = 0.12;
