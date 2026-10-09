@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from pymongo import ReturnDocument
 
@@ -369,6 +369,18 @@ class DeviceRepository:
             upsert=True,
         )
 
+        # Hearing from a device is the only evidence that it
+        # is still there, so every report refreshes it.
+        self.collection.update_one(
+            {"_id": device_id},
+            {
+                "$set": {
+                    "available": True,
+                    "last_seen_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+
         self._refresh_in_sync(device_id)
 
         return self.get_by_id(
@@ -445,7 +457,64 @@ class DeviceRepository:
             upsert=True,
         )
 
+        # Hearing from a device is the only evidence that it
+        # is still there, so every report refreshes it.
+        self.collection.update_one(
+            {"_id": device_id},
+            {
+                "$set": {
+                    "available": True,
+                    "last_seen_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+
         self._refresh_in_sync(device_id)
+
+    def mark_stale(
+        self,
+        stale_after_seconds: int,
+    ):
+        """
+        Mark devices that have gone quiet as unavailable.
+
+        Silence is the only signal an absent device gives.
+        Without this the twin keeps presenting the last
+        reported values as current, which is the one thing
+        it must never do.
+
+        Returns the devices whose availability changed, so
+        the caller can record and broadcast the transition.
+        """
+
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            seconds=stale_after_seconds
+        )
+
+        query = {
+            "available": True,
+            "last_seen_at": {"$lt": cutoff},
+        }
+
+        gone = [
+            {
+                "id": document["_id"],
+                "house_id": document["house_id"],
+                "last_seen_at": document.get("last_seen_at"),
+            }
+            for document in self.collection.find(
+                query,
+                {"house_id": 1, "last_seen_at": 1},
+            )
+        ]
+
+        if gone:
+            self.collection.update_many(
+                query,
+                {"$set": {"available": False}},
+            )
+
+        return gone
 
     def _states_for(
         self,
