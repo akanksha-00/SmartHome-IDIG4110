@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/src/blocs/devices/device_bloc.dart';
+import 'package:smart_home/src/models/devices/device_message.dart';
 import 'package:smart_home/src/screen/home/widgets/addDeviceDialog.dart';
 import 'package:smart_home/src/screen/home/widgets/api_device_card.dart';
 import 'package:smart_home/src/screen/home/widgets/device_panel.dart';
@@ -236,9 +237,10 @@ void main() {
   });
 
   testWidgets(
-      'brightness previews locally and sends one numeric command when the drag ends',
+      'brightness sends one numeric command with power and stays on after telemetry',
       (tester) async {
     var writes = 0;
+    Map<String, Object?>? commandedState;
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') {
@@ -247,8 +249,10 @@ void main() {
       writes++;
       expectSync(request.method, 'POST');
       expectSync(jsonDecode(request.body), {
-        'state': {'brightness': 60}
+        'state': {'power': true, 'brightness': 60}
       });
+      commandedState =
+          (jsonDecode(request.body)['state'] as Map).cast<String, Object?>();
       return response.future;
     });
     await openPanel(tester, bloc);
@@ -265,14 +269,88 @@ void main() {
     expect(writes, 1);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(bloc.state.devices.single.state['brightness'], 60);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
-    response.complete(jsonResponse(commandAck(state: {'brightness': 60})));
+    // A receiver that defaults missing power to off must still keep this light
+    // on when it reports the command's actual state through WebSocket.
+    bloc.add(DeviceRealtimeReceived(DeviceMessage(
+      deviceId: 'device-001',
+      updates: {
+        'power': commandedState!['power'] ?? false,
+        'brightness': commandedState!['brightness'],
+      },
+    )));
+    await tester.pump();
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    response.complete(jsonResponse(commandAck(state: commandedState!)));
     await tester.pumpAndSettle();
     expect(bloc.state.updateError, isNull);
     expect(bloc.state.pendingDeviceIds, isEmpty);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(bloc.state.devices.single.state['brightness'], 60);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
+  });
+
+  testWidgets(
+      'failed brightness command restores brightness and keeps power on',
+      (tester) async {
+    final response = Completer<http.Response>();
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') {
+        return jsonResponse([deviceJson(power: true)]);
+      }
+      expectSync(jsonDecode(request.body), {
+        'state': {'power': true, 'brightness': 60}
+      });
+      return response.future;
+    });
+    await openPanel(tester, bloc);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(0.6);
+    await tester.pump();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    response.complete(http.Response('Unavailable', 503));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0.4);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    expect(bloc.state.updateError, isNotNull);
+  });
+
+  testWidgets('zero brightness does not implicitly switch off the light',
+      (tester) async {
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') {
+        return jsonResponse([deviceJson(power: true)]);
+      }
+      expectSync(jsonDecode(request.body), {
+        'state': {'power': true, 'brightness': 0}
+      });
+      return jsonResponse(commandAck(state: {'power': true, 'brightness': 0}));
+    });
+    await openPanel(tester, bloc);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(0);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+  });
+
+  testWidgets('brightness does not send undeclared power capabilities',
+      (tester) async {
+    final light = deviceJson(power: true);
+    (light['capabilities'] as Map).remove('power');
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') return jsonResponse([light]);
+      expectSync(jsonDecode(request.body), {
+        'state': {'brightness': 60}
+      });
+      return jsonResponse(commandAck(state: {'brightness': 60}));
+    });
+    await openPanel(tester, bloc);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(0.6);
+    await tester.pumpAndSettle();
+    expect(bloc.state.updateError, isNull);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
   });
 
   testWidgets(

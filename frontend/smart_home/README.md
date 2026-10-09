@@ -47,8 +47,10 @@ For another server, use `--dart-define=SMART_HOME_WS_BASE_URL=wss://your-server`
   a fresh device snapshot on reconnection. Cached devices stay visible.
   Returning to the app also refreshes device data.
 - Switches, brightness and fan speed POST to the device's `/command` endpoint
-  with `{"state": {"power": true, "brightness": 70}}` (only changed capabilities
-  are sent). Boolean and numeric capability values retain their JSON types.
+  with a `state` object. Brightness commands include the light's current power
+  when declared, e.g. `{"state": {"power": true, "brightness": 70}}`, so changing
+  brightness explicitly keeps an on light powered. Other controls send only
+  changed capabilities. Boolean and numeric values retain their JSON types.
   Controls, counts and 3D markers update immediately while the command publishes
   in the background, with no progress bar or layout change. A failed HTTP request
   restores only the changed values and shows an error; newer WebSocket readings
