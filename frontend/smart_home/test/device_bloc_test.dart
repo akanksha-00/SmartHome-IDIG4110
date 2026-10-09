@@ -104,7 +104,7 @@ void main() {
       expect(request.url.path,
           '/api/v1/houses/house-001/devices/device-001/command');
       expect(jsonDecode(request.body), {
-        'state': {'power': true}
+        'state': {'power': true, 'brightness': 40}
       });
       return response.future;
     });
@@ -150,6 +150,76 @@ void main() {
     expect(bloc.state.devices.first.state['brightness'], 90);
     expect(bloc.state.pendingDeviceIds, isEmpty);
     expect(bloc.state.devices, hasLength(2));
+  });
+
+  test('fan commands retain all state values across successive edits',
+      () async {
+    final fan = deviceJson(type: 'fan', power: true, speed: 3);
+    (fan['capabilities'] as Map)['oscillation'] = {'type': 'boolean'};
+    (fan['state'] as Map)['oscillation'] = false;
+    final commands = <Map<String, dynamic>>[];
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') return jsonResponse([fan]);
+      expect(request.method, 'POST');
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      commands.add(body);
+      return jsonResponse(commandAck(state: body['state']));
+    });
+    await loadDevices(bloc);
+    final speedSaved = waitForDeviceState(
+        bloc,
+        (s) =>
+            s.devices.single.state['speed'] == 5 && s.pendingDeviceIds.isEmpty);
+    bloc.add(
+        DeviceStateUpdateRequested(id: 'device-001', updates: {'speed': 5}));
+    await speedSaved;
+    final powerSaved = waitForDeviceState(
+        bloc,
+        (s) =>
+            s.devices.single.state['power'] == false &&
+            s.pendingDeviceIds.isEmpty);
+    bloc.add(DeviceStateUpdateRequested(
+        id: 'device-001', updates: {'power': false}));
+    await powerSaved;
+    expect(commands, [
+      {
+        'state': {'power': true, 'speed': 5, 'oscillation': false}
+      },
+      {
+        'state': {'power': false, 'speed': 5, 'oscillation': false}
+      },
+    ]);
+    expect(bloc.state.devices.single.state,
+        {'power': false, 'speed': 5, 'oscillation': false});
+  });
+
+  test('a full command includes the latest values received over WebSocket',
+      () async {
+    final fan = deviceJson(type: 'fan', power: true, speed: 3);
+    (fan['capabilities'] as Map)['oscillation'] = {'type': 'boolean'};
+    (fan['state'] as Map)['oscillation'] = false;
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') return jsonResponse([fan]);
+      expect(jsonDecode(request.body), {
+        'state': {'power': false, 'speed': 4, 'oscillation': true}
+      });
+      return jsonResponse(commandAck());
+    });
+    await loadDevices(bloc);
+    final received = waitForDeviceState(
+        bloc, (s) => s.devices.single.state['oscillation'] == true);
+    bloc.add(DeviceRealtimeReceived(DeviceMessage(
+        deviceId: 'device-001', updates: {'speed': 4, 'oscillation': true})));
+    await received;
+    final saved = waitForDeviceState(
+        bloc,
+        (s) =>
+            s.devices.single.state['power'] == false &&
+            s.pendingDeviceIds.isEmpty);
+    bloc.add(DeviceStateUpdateRequested(
+        id: 'device-001', updates: {'power': false}));
+    await saved;
+    expect(bloc.state.updateError, isNull);
   });
 
   test('failure keeps a newer live value for the same capability', () async {

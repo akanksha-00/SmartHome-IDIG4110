@@ -189,15 +189,18 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
           StateError('Wait for device data to finish refreshing'), emit);
       return;
     }
+    // Commands carry the whole current state, with only the edited values
+    // replaced. Keep the edit separately so failure rolls back only that edit.
+    final updated = device.withState(event.updates);
     final pending = _PendingUpdate(device, event.updates);
     _pendingUpdates[event.id] = pending;
     emit(state.copyWith(
-        devices: _replace(device.withState(event.updates)),
+        devices: _replace(updated),
         pendingDeviceIds: _pendingUpdates.keys.toSet(),
         updateError: null));
     try {
       await _request(
-          repository.sendCommand(id: event.id, updates: event.updates));
+          repository.sendCommand(id: event.id, updates: updated.state));
       if (emit.isDone || _closing) return;
       _pendingUpdates.remove(event.id);
       // HTTP confirms MQTT publication, not the device's actual state. Keep

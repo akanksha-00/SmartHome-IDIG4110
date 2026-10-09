@@ -44,22 +44,11 @@ class ApiDeviceCard extends StatelessWidget {
           subtitle: subtitle,
           isOn: isOn,
           brightness: value,
-          onPowerChanged: power == null
-              ? null
-              : (value) => onStateChanged({
-                    'power': value,
-                    // Switching power preserves the saved brightness level.
-                    if (capability != null && raw is num && raw.isFinite)
-                      'brightness': raw,
-                  }),
+          onPowerChanged: power,
           onBrightnessChanged: canUpdate && hasBrightness
               ? (value) {
                   final scaled = min + value * (max - min);
                   onStateChanged({
-                    // Keep an on light powered when its brightness changes.
-                    if (device.capabilities['power']?.type == 'boolean' &&
-                        device.state['power'] is bool)
-                      'power': isOn,
                     'brightness':
                         capability.type == 'integer' ? scaled.round() : scaled
                   });
