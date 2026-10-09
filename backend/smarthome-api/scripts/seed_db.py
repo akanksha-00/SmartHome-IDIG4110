@@ -10,6 +10,7 @@ two backends can be compared against identical content.
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from pymongo import MongoClient
@@ -51,6 +52,36 @@ def to_document(record: dict) -> dict:
     return document
 
 
+def seed_state(
+    db,
+    device_id: str,
+    house_id: str,
+    reported: dict,
+) -> None:
+    """
+    Create the twin record for a seeded device.
+
+    `reported` is what the fixture says the device last
+    reported. `desired` starts empty, because nothing has
+    been asked of it yet, which is why `in_sync` is true.
+    """
+
+    db.device_state.update_one(
+        {"_id": device_id},
+        {
+            "$set": {
+                "house_id": house_id,
+                "reported": reported,
+                "desired": {},
+                "in_sync": True,
+                "seq": 0,
+                "received_at": datetime.now(timezone.utc),
+            }
+        },
+        upsert=True,
+    )
+
+
 def main() -> None:
 
     parser = argparse.ArgumentParser()
@@ -78,8 +109,12 @@ def main() -> None:
         collection = db[collection_name]
 
         if args.reset:
+
             deleted = collection.delete_many({}).deleted_count
             print(f"{collection_name}: removed {deleted}")
+
+            if collection_name == "devices":
+                db.device_state.delete_many({})
 
         inserted = 0
         skipped = 0
@@ -87,6 +122,14 @@ def main() -> None:
         for record in records:
 
             document = to_document(record)
+
+            # A device's state belongs in device_state, not
+            # on the device itself.
+            state = (
+                document.pop("state", {})
+                if collection_name == "devices"
+                else None
+            )
 
             # Idempotent: re-running does not duplicate or
             # silently overwrite edited data.
@@ -96,6 +139,14 @@ def main() -> None:
 
             collection.insert_one(document)
             inserted += 1
+
+            if state is not None:
+                seed_state(
+                    db,
+                    document["_id"],
+                    document["house_id"],
+                    state,
+                )
 
         print(
             f"{collection_name}: "
