@@ -1,7 +1,8 @@
 import json
-import os
 
 from fastapi_mqtt import FastMQTT, MQTTConfig
+
+from smarthome_api.config import settings
 
 from smarthome_api.mqtt.topics import (
     EVENT_SUBSCRIPTION,
@@ -20,8 +21,8 @@ from smarthome_api.services.device_service import (
 
 
 mqtt_config = MQTTConfig(
-    host=os.getenv("MQTT_HOST", "localhost"),
-    port=int(os.getenv("MQTT_PORT", "1883")),
+    host=settings.mqtt_host,
+    port=settings.mqtt_port,
 )
 
 mqtt = FastMQTT(config=mqtt_config)
