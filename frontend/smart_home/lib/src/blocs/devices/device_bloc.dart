@@ -75,7 +75,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
   StreamSubscription<DeviceMessage>? _messageSubscription;
   StreamSubscription<SocketConnectionState>? _connectionSubscription;
   final _pendingRequests = <Completer<Object?>>{};
-  // Reports received during PATCH win over its returned device snapshot.
+  // Reports received during a command take precedence over local rollback.
   final _pendingUpdates = <String, _PendingUpdate>{};
   final _buffer = <String, Map<String, Object?>>{};
   final _unknown = <String, List<DeviceMessage>>{};
@@ -139,7 +139,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
       }
       _buffer.clear();
       // A reconnect snapshot must not flash old values over a local change
-      // whose PATCH is still in flight. New live reports remain authoritative.
+      // whose command is still in flight. Live reports remain authoritative.
       for (final entry in _pendingUpdates.entries) {
         final device = byId[entry.key];
         if (device != null) {
@@ -196,20 +196,19 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
         pendingDeviceIds: _pendingUpdates.keys.toSet(),
         updateError: null));
     try {
-      final response = await _request(
-          repository.updateDeviceStatus(id: event.id, updates: event.updates));
+      await _request(
+          repository.sendCommand(id: event.id, updates: event.updates));
       if (emit.isDone || _closing) return;
-      _checkResponse(response, event.id);
-      final saved = response.withState(pending.reports);
       _pendingUpdates.remove(event.id);
-      // A reconnect GET can run alongside PATCH. Its older snapshot must not
-      // undo the state that the backend just saved.
+      // HTTP confirms MQTT publication, not the device's actual state. Keep
+      // the current optimistic/live values instead of decoding the ack as a
+      // device or fetching an older snapshot immediately after publication.
       if (_loadingSnapshot) {
-        _changedDuringLoad.add(saved);
+        final current =
+            state.devices.where((d) => d.id == event.id).firstOrNull;
+        if (current != null) _changedDuringLoad.add(current);
       }
-      emit(state.copyWith(
-          devices: _replace(saved),
-          pendingDeviceIds: _pendingUpdates.keys.toSet()));
+      emit(state.copyWith(pendingDeviceIds: _pendingUpdates.keys.toSet()));
     } catch (error) {
       if (emit.isDone || _closing) return;
       _pendingUpdates.remove(event.id);

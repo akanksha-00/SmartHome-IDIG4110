@@ -162,7 +162,8 @@ void main() {
     expect(bloc.state.alerts, hasLength(1));
   });
 
-  test('live reports do not finish PATCH before its HTTP response', () async {
+  test('live reports do not finish commands before the HTTP acknowledgement',
+      () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((r) async =>
         r.method == 'GET' ? jsonResponse([deviceJson()]) : response.future);
@@ -180,15 +181,15 @@ void main() {
     expect(bloc.state.pendingDeviceIds, contains('device-001'));
     final confirmed =
         waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    response.complete(jsonResponse(deviceJson()));
+    response.complete(jsonResponse(commandAck()));
     await confirmed;
     expect(bloc.state.devices.single.state['power'], true);
   });
 
-  test('a saved PATCH response survives a concurrent older GET snapshot',
+  test('an acknowledged command survives a concurrent older GET snapshot',
       () async {
     var gets = 0;
-    final patchResponse = Completer<http.Response>();
+    final commandResponse = Completer<http.Response>();
     final refreshResponse = Completer<http.Response>();
     final bloc = testDeviceBloc((r) async {
       if (r.method == 'GET') {
@@ -197,7 +198,7 @@ void main() {
             ? jsonResponse([deviceJson()])
             : refreshResponse.future;
       }
-      return patchResponse.future;
+      return commandResponse.future;
     });
     await loadDevices(bloc);
     final pending =
@@ -210,7 +211,7 @@ void main() {
     bloc.add(const DevicesRequested(force: true));
     await refreshing;
     final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    patchResponse.complete(jsonResponse(deviceJson(power: true)));
+    commandResponse.complete(jsonResponse(commandAck(state: {'power': true})));
     await saved;
     final loaded =
         waitForDeviceState(bloc, (s) => s.status == DeviceLoadStatus.loaded);
@@ -220,9 +221,9 @@ void main() {
     expect(bloc.state.updateError, isNull);
   });
 
-  test('refresh keeps optimistic values while PATCH is still in flight',
+  test('refresh keeps optimistic values while a command is still in flight',
       () async {
-    final patchResponse = Completer<http.Response>();
+    final commandResponse = Completer<http.Response>();
     final refreshResponse = Completer<http.Response>();
     var gets = 0;
     final bloc = testDeviceBloc((r) async {
@@ -231,7 +232,7 @@ void main() {
             ? jsonResponse([deviceJson()])
             : refreshResponse.future;
       }
-      return patchResponse.future;
+      return commandResponse.future;
     });
     await loadDevices(bloc);
     final pending =
@@ -250,13 +251,13 @@ void main() {
     expect(bloc.state.devices.single.state['power'], true);
     expect(bloc.state.pendingDeviceIds, {'device-001'});
     final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    patchResponse.complete(jsonResponse(deviceJson(power: true)));
+    commandResponse.complete(jsonResponse(commandAck(state: {'power': true})));
     await saved;
     expect(bloc.state.devices.single.state['power'], true);
   });
 
   test('a rollback survives a concurrent stale refresh', () async {
-    final patchResponse = Completer<http.Response>();
+    final commandResponse = Completer<http.Response>();
     final refreshResponse = Completer<http.Response>();
     var gets = 0;
     final bloc = testDeviceBloc((r) async {
@@ -265,7 +266,7 @@ void main() {
             ? jsonResponse([deviceJson()])
             : refreshResponse.future;
       }
-      return patchResponse.future;
+      return commandResponse.future;
     });
     await loadDevices(bloc);
     final pending =
@@ -278,7 +279,7 @@ void main() {
     bloc.add(const DevicesRequested(force: true));
     await refreshing;
     final failed = waitForDeviceState(bloc, (s) => s.updateError != null);
-    patchResponse.complete(http.Response('Unavailable', 503));
+    commandResponse.complete(http.Response('Unavailable', 503));
     await failed;
     expect(bloc.state.devices.single.state['brightness'], 40);
     final loaded =
@@ -423,17 +424,18 @@ void main() {
     expect(bloc.state.alerts.single.message, 'Smoke!');
   });
 
-  test('PATCH controls work while WebSocket is disconnected', () async {
+  test('commands are acknowledged without waiting for a WebSocket connection',
+      () async {
     final channel = FakeChannel(readyNow: false);
     final realtime = HouseRealtimeRepository(
         socket: WebSocketService(
             endpoint: 'ws://localhost/ws', connector: (_) => channel));
-    var patches = 0;
+    var commands = 0;
     final bloc = testDeviceBloc((r) async {
       if (r.method == 'GET') return jsonResponse([deviceJson()]);
-      expect(r.method, 'PATCH');
-      patches++;
-      return jsonResponse(deviceJson(power: true));
+      expect(r.method, 'POST');
+      commands++;
+      return jsonResponse(commandAck(state: {'power': true}));
     }, realtime: realtime);
     await loadDevices(bloc);
     expect(bloc.state.connection, isNot(SocketConnectionState.connected));
@@ -445,7 +447,7 @@ void main() {
     bloc.add(
         DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
     await saved;
-    expect(patches, 1);
+    expect(commands, 1);
     expect(bloc.state.pendingDeviceIds, isEmpty);
     expect(bloc.state.updateError, isNull);
     channel.handshake.complete();
