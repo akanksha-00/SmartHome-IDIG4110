@@ -2,10 +2,7 @@ import json
 
 from smarthome_api.mqtt.client import publish
 from smarthome_api.mqtt.topics import command_topic
-from smarthome_api.repositories.device_repository import DeviceRepository
-
-
-device_repository = DeviceRepository()
+from smarthome_api.repositories.factory import device_repository
 
 
 def validate_device_command(

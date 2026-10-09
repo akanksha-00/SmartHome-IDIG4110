@@ -1,7 +1,4 @@
-from smarthome_api.repositories.house_repository import HouseRepository
-
-
-house_repository = HouseRepository()
+from smarthome_api.repositories.factory import house_repository
 
 
 # ==================================================

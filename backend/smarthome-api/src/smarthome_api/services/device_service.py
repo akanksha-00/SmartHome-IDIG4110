@@ -1,11 +1,10 @@
-from smarthome_api.repositories.device_repository import DeviceRepository
-from smarthome_api.repositories.house_repository import HouseRepository
-from smarthome_api.repositories.room_repository import RoomRepository
+from smarthome_api.repositories.factory import (
+    device_repository,
+    house_repository,
+    room_repository,
+)
 from smarthome_api.services.threshold_service import evaluate_threshold
 from smarthome_api.websocket.manager import manager
-device_repository = DeviceRepository()
-house_repository = HouseRepository()
-room_repository = RoomRepository()
 
 
 # ==================================================
