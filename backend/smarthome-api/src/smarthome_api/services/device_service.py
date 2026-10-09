@@ -1,5 +1,6 @@
 from smarthome_api.repositories.factory import (
     device_repository,
+    event_repository,
     house_repository,
     room_repository,
 )
@@ -244,6 +245,19 @@ async def handle_device_state(
         state,
     )
 
+    event_repository.record_event(
+        house_id,
+        device_id,
+        "state_change",
+        state,
+    )
+
+    event_repository.record_history(
+        house_id,
+        device_id,
+        state,
+    )
+
     thresholds = device.get(
         "thresholds",
         {},
@@ -418,6 +432,22 @@ async def handle_device_event(
             f"invalid value for '{event}': {exc}"
         )
         return None
+
+    event_repository.record_event(
+        house_id,
+        device_id,
+        "device_event",
+        {
+            "event": event,
+            "value": value,
+        },
+    )
+
+    event_repository.record_history(
+        house_id,
+        device_id,
+        {event: value},
+    )
 
     # Get threshold configuration
     thresholds = device.get("thresholds", {})

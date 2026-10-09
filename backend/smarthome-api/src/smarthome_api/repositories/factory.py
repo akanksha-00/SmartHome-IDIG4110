@@ -17,6 +17,7 @@ if settings.storage_backend == "mongo":
 
     from smarthome_api.repositories.mongo import (
         DeviceRepository,
+        EventRepository,
         HouseRepository,
         RoomRepository,
     )
@@ -25,6 +26,9 @@ else:
 
     from smarthome_api.repositories.device_repository import (
         DeviceRepository,
+    )
+    from smarthome_api.repositories.event_repository import (
+        EventRepository,
     )
     from smarthome_api.repositories.house_repository import (
         HouseRepository,
@@ -36,12 +40,14 @@ else:
 
 # One instance each, shared by the services.
 device_repository = DeviceRepository()
+event_repository = EventRepository()
 house_repository = HouseRepository()
 room_repository = RoomRepository()
 
 
 __all__ = [
     "device_repository",
+    "event_repository",
     "house_repository",
     "room_repository",
 ]
