@@ -1,0 +1,241 @@
+{
+  "models": {
+    "DashboardRoom": {
+      "fields": {
+        "devices": "array",
+        "id": "string",
+        "name": "string"
+      },
+      "required": [
+        "devices",
+        "id",
+        "name"
+      ]
+    },
+    "DeviceCapability": {
+      "fields": {
+        "max": "integer|null|number",
+        "min": "integer|null|number",
+        "type": "string"
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "DeviceCapabilityUpdate": {
+      "fields": {
+        "name": "string",
+        "value": "unknown"
+      },
+      "required": [
+        "name",
+        "value"
+      ]
+    },
+    "DeviceCommand": {
+      "fields": {
+        "state": "object"
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "DeviceCreate": {
+      "fields": {
+        "capabilities": "object",
+        "id": "string",
+        "installed_year": "integer|null",
+        "installer": "null|string",
+        "manufactured_year": "integer|null",
+        "manufacturer": "null|string",
+        "model": "null|string",
+        "name": "string",
+        "room_id": "null|string",
+        "state": "object",
+        "status": "object",
+        "type": "string"
+      },
+      "required": [
+        "id",
+        "name",
+        "type"
+      ]
+    },
+    "DeviceResponse": {
+      "fields": {
+        "capabilities": "object",
+        "desired": "object",
+        "house_id": "string",
+        "id": "string",
+        "in_sync": "boolean",
+        "installed_year": "integer|null",
+        "installer": "null|string",
+        "manufactured_year": "integer|null",
+        "manufacturer": "null|string",
+        "model": "null|string",
+        "name": "string",
+        "room_id": "null|string",
+        "state": "object",
+        "status": "object",
+        "type": "string"
+      },
+      "required": [
+        "house_id",
+        "id",
+        "name",
+        "type"
+      ]
+    },
+    "DeviceUpdate": {
+      "fields": {
+        "installed_year": "integer|null",
+        "installer": "null|string",
+        "manufactured_year": "integer|null",
+        "manufacturer": "null|string",
+        "model": "null|string",
+        "name": "null|string"
+      },
+      "required": []
+    },
+    "HTTPValidationError": {
+      "fields": {
+        "detail": "array"
+      },
+      "required": []
+    },
+    "HouseCreate": {
+      "fields": {
+        "address": "null|string",
+        "city": "null|string",
+        "id": "string",
+        "name": "string",
+        "postal_code": "null|string"
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "HouseDashboard": {
+      "fields": {
+        "house": "HouseResponse",
+        "rooms": "array",
+        "unassigned_devices": "array"
+      },
+      "required": [
+        "house",
+        "rooms",
+        "unassigned_devices"
+      ]
+    },
+    "HouseResponse": {
+      "fields": {
+        "address": "null|string",
+        "city": "null|string",
+        "id": "string",
+        "name": "string",
+        "postal_code": "null|string"
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "HouseUpdate": {
+      "fields": {
+        "address": "null|string",
+        "city": "null|string",
+        "name": "null|string",
+        "postal_code": "null|string"
+      },
+      "required": []
+    },
+    "RoomCreate": {
+      "fields": {
+        "id": "string",
+        "name": "string"
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "RoomResponse": {
+      "fields": {
+        "house_id": "string",
+        "id": "string",
+        "name": "string"
+      },
+      "required": [
+        "house_id",
+        "id",
+        "name"
+      ]
+    },
+    "ValidationError": {
+      "fields": {
+        "ctx": "object",
+        "input": "unknown",
+        "loc": "array",
+        "msg": "string",
+        "type": "string"
+      },
+      "required": [
+        "loc",
+        "msg",
+        "type"
+      ]
+    }
+  },
+  "paths": {
+    "/api/v1/health/": [
+      "get"
+    ],
+    "/api/v1/houses": [
+      "get",
+      "post"
+    ],
+    "/api/v1/houses/{house_id}": [
+      "delete",
+      "get",
+      "patch",
+      "put"
+    ],
+    "/api/v1/houses/{house_id}/dashboard": [
+      "get"
+    ],
+    "/api/v1/houses/{house_id}/devices": [
+      "get",
+      "post"
+    ],
+    "/api/v1/houses/{house_id}/devices/{device_id}": [
+      "delete",
+      "get",
+      "patch",
+      "put"
+    ],
+    "/api/v1/houses/{house_id}/devices/{device_id}/command": [
+      "post"
+    ],
+    "/api/v1/houses/{house_id}/devices/{device_id}/room": [
+      "delete"
+    ],
+    "/api/v1/houses/{house_id}/devices/{device_id}/room/{room_id}": [
+      "put"
+    ],
+    "/api/v1/houses/{house_id}/rooms": [
+      "get",
+      "post"
+    ],
+    "/api/v1/houses/{house_id}/rooms/{room_id}": [
+      "delete",
+      "get"
+    ],
+    "/api/v1/houses/{house_id}/rooms/{room_id}/devices": [
+      "get"
+    ],
+    "/mqtt-test": [
+      "post"
+    ]
+  }
+}
