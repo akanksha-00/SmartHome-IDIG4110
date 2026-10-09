@@ -103,6 +103,20 @@
       },
       "required": []
     },
+    "HistoryPoint": {
+      "fields": {
+        "metric": "string",
+        "observed_at": "string",
+        "received_at": "null|string",
+        "time_source": "null|string",
+        "value": "unknown"
+      },
+      "required": [
+        "metric",
+        "observed_at",
+        "value"
+      ]
+    },
     "HouseCreate": {
       "fields": {
         "address": "null|string",
@@ -216,6 +230,9 @@
     ],
     "/api/v1/houses/{house_id}/devices/{device_id}/command": [
       "post"
+    ],
+    "/api/v1/houses/{house_id}/devices/{device_id}/history": [
+      "get"
     ],
     "/api/v1/houses/{house_id}/devices/{device_id}/room": [
       "delete"

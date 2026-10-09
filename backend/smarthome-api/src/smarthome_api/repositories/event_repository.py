@@ -25,3 +25,12 @@ class EventRepository:
         state: dict,
     ):
         return []
+
+    def history(
+        self,
+        house_id: str,
+        device_id: str,
+        metric: str | None = None,
+        limit: int = 200,
+    ):
+        return []

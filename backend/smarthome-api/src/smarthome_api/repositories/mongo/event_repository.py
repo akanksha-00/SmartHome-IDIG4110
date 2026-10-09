@@ -72,3 +72,38 @@ class EventRepository:
         self.history_collection.insert_many(documents)
 
         return documents
+
+    def history(
+        self,
+        house_id: str,
+        device_id: str,
+        metric: str | None = None,
+        limit: int = 200,
+    ):
+        """
+        Recent measurements, newest first.
+
+        Scoped by house as well as device so history cannot
+        be read from the wrong house by guessing an id.
+        """
+
+        query = {
+            "meta.device_id": device_id,
+            "meta.house_id": house_id,
+        }
+
+        if metric:
+            query["meta.metric"] = metric
+
+        return [
+            {
+                "metric": document["meta"]["metric"],
+                "value": document["value"],
+                "observed_at": document["observed_at"],
+                "received_at": document.get("received_at"),
+                "time_source": document.get("time_source"),
+            }
+            for document in self.history_collection.find(query)
+            .sort("observed_at", -1)
+            .limit(limit)
+        ]

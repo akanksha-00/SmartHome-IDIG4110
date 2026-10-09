@@ -403,6 +403,37 @@ def unassign_device_from_room(
 
 
 
+def get_device_history(
+    house_id: str,
+    device_id: str,
+    metric: str | None = None,
+    limit: int = 200,
+):
+    """
+    Recent measurements for one device.
+
+    Returns None when the device does not exist in this
+    house, so the route can answer 404 rather than an empty
+    list, which would claim the device exists and has said
+    nothing.
+    """
+
+    device = device_repository.get_by_id(
+        house_id,
+        device_id,
+    )
+
+    if device is None:
+        return None
+
+    return event_repository.history(
+        house_id,
+        device_id,
+        metric,
+        limit,
+    )
+
+
 async def sweep_absent_devices(house_id: str):
     """
     Notice devices that have stopped reporting.
