@@ -158,3 +158,47 @@ def test_reporting_again_brings_a_device_back(devices, lamp):
         "house-test",
         "lamp-test",
     )["available"] is True
+
+
+def test_history_returns_newest_first(devices, events, lamp):
+    for value in (10, 20, 30):
+        devices.update_state(
+            "house-test",
+            "lamp-test",
+            {"brightness": value},
+        )
+        events.record_history(
+            "house-test",
+            "lamp-test",
+            {"brightness": value},
+        )
+
+    points = events.history("house-test", "lamp-test")
+
+    assert [p["value"] for p in points] == [30, 20, 10]
+
+
+def test_history_can_be_filtered_by_metric(events, lamp):
+    events.record_history(
+        "house-test",
+        "lamp-test",
+        {"brightness": 50, "power": True},
+    )
+
+    points = events.history(
+        "house-test",
+        "lamp-test",
+        metric="power",
+    )
+
+    assert [p["metric"] for p in points] == ["power"]
+
+
+def test_history_is_scoped_to_the_house(events, lamp):
+    events.record_history(
+        "house-test",
+        "lamp-test",
+        {"brightness": 50},
+    )
+
+    assert events.history("house-other", "lamp-test") == []

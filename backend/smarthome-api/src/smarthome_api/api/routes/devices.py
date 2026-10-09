@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from smarthome_api.schemas.mqtt import DeviceCommand
 
@@ -11,6 +11,7 @@ from smarthome_api.schemas.device import (
     DeviceCreate,
     DeviceResponse,
     DeviceUpdate,
+    HistoryPoint,
 )
 
 from smarthome_api.services.device_service import (
@@ -19,6 +20,7 @@ from smarthome_api.services.device_service import (
     delete_device,
     get_all_devices,
     get_device,
+    get_device_history,
     unassign_device_from_room,
     update_device,
     update_device_state,
@@ -146,6 +148,44 @@ async def get_device_by_id(
     result = get_device(
         house_id,
         device_id,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Device not found",
+        )
+
+    return result
+
+
+# ==================================================
+# DEVICE HISTORY
+# ==================================================
+
+@router.get(
+    "/{device_id}/history",
+    response_model=list[HistoryPoint],
+)
+async def get_history(
+    house_id: str,
+    device_id: str,
+    metric: str | None = Query(
+        default=None,
+        description="Limit to one measurement, such as brightness.",
+    ),
+    limit: int = Query(
+        default=200,
+        ge=1,
+        le=1000,
+        description="Most recent points to return.",
+    ),
+):
+    result = get_device_history(
+        house_id,
+        device_id,
+        metric,
+        limit,
     )
 
     if result is None:
