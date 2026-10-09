@@ -1,3 +1,4 @@
+from smarthome_api.config import settings
 from smarthome_api.repositories.factory import (
     command_repository,
     device_repository,
@@ -259,6 +260,8 @@ async def handle_device_state(
         state,
     )
 
+    await sweep_absent_devices(house_id)
+
     command_repository.expire_overdue()
 
     command_repository.confirm_matching(
@@ -398,6 +401,45 @@ def unassign_device_from_room(
     )
 
 
+
+
+async def sweep_absent_devices(house_id: str):
+    """
+    Notice devices that have stopped reporting.
+
+    Run when a message arrives rather than on a timer: a
+    house with no traffic at all has nothing to report
+    about anyway, and this keeps the prototype free of
+    background tasks. A device in a silent house is noticed
+    on the next message from any device in it.
+    """
+
+    gone = device_repository.mark_stale(
+        settings.device_stale_after_seconds
+    )
+
+    for device in gone:
+
+        event_repository.record_event(
+            device["house_id"],
+            device["id"],
+            "availability",
+            {"available": False},
+        )
+
+        await manager.broadcast(
+            device["house_id"],
+            {
+                "type": "device_availability",
+                "device_id": device["id"],
+                "available": False,
+                "last_seen_at": str(
+                    device.get("last_seen_at")
+                ),
+            },
+        )
+
+    return gone
 
 
 async def handle_device_event(

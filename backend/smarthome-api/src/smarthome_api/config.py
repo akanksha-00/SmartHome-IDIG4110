@@ -42,5 +42,14 @@ class Settings(BaseSettings):
 
     mqtt_port: int = 1883
 
+    # ==================================================
+    # DEVICES
+    # ==================================================
+
+    # Silence longer than this means the device is treated
+    # as absent. Long enough to survive a slow reporting
+    # cycle, short enough that a dead device is noticed.
+    device_stale_after_seconds: int = 120
+
 
 settings = Settings()

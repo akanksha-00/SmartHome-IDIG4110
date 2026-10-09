@@ -94,3 +94,67 @@ def test_delete_removes_the_state_document(devices, database, lamp):
     assert database.device_state.find_one(
         {"_id": "lamp-test"}
     ) is None
+
+
+def test_reporting_marks_a_device_present(devices, lamp):
+    devices.update_state(
+        "house-test",
+        "lamp-test",
+        {"brightness": 10},
+    )
+
+    device = devices.get_by_id("house-test", "lamp-test")
+
+    assert device["available"] is True
+    assert device["last_seen_at"] is not None
+
+
+def test_silence_marks_a_device_absent(devices, lamp):
+    devices.update_state(
+        "house-test",
+        "lamp-test",
+        {"brightness": 10},
+    )
+
+    # Nothing has been quiet for an hour yet.
+    assert devices.mark_stale(3600) == []
+
+    gone = devices.mark_stale(0)
+
+    assert [d["id"] for d in gone] == ["lamp-test"]
+    assert devices.get_by_id(
+        "house-test",
+        "lamp-test",
+    )["available"] is False
+
+
+def test_an_absent_device_is_only_reported_once(devices, lamp):
+    devices.update_state(
+        "house-test",
+        "lamp-test",
+        {"brightness": 10},
+    )
+
+    devices.mark_stale(0)
+
+    assert devices.mark_stale(0) == []
+
+
+def test_reporting_again_brings_a_device_back(devices, lamp):
+    devices.update_state(
+        "house-test",
+        "lamp-test",
+        {"brightness": 10},
+    )
+    devices.mark_stale(0)
+
+    devices.update_state(
+        "house-test",
+        "lamp-test",
+        {"brightness": 20},
+    )
+
+    assert devices.get_by_id(
+        "house-test",
+        "lamp-test",
+    )["available"] is True

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from smarthome_api.repositories.state_sync import is_in_sync
@@ -228,11 +229,64 @@ class DeviceRepository:
                 device.get("desired"),
             )
 
+            device["available"] = True
+            device["last_seen_at"] = datetime.now(
+                timezone.utc
+            ).isoformat()
+
             self._save(devices)
 
             return device
 
         return None
+
+    # ==================================================
+    # AVAILABILITY
+    # ==================================================
+
+    def mark_stale(
+        self,
+        stale_after_seconds: int,
+    ):
+        """
+        Mark devices that have gone quiet as unavailable.
+        """
+
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            seconds=stale_after_seconds
+        )
+
+        devices = self._load()
+
+        gone = []
+
+        for device in devices:
+
+            if not device.get("available"):
+                continue
+
+            last_seen = device.get("last_seen_at")
+
+            if not last_seen:
+                continue
+
+            if datetime.fromisoformat(last_seen) >= cutoff:
+                continue
+
+            device["available"] = False
+
+            gone.append(
+                {
+                    "id": device["id"],
+                    "house_id": device["house_id"],
+                    "last_seen_at": last_seen,
+                }
+            )
+
+        if gone:
+            self._save(devices)
+
+        return gone
 
     # ==================================================
     # DESIRED STATE
