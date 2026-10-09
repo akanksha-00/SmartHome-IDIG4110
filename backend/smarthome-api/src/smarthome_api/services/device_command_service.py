@@ -96,6 +96,17 @@ def send_device_command(
         payload,
     )
 
+    # Record what was asked for. The device has not
+    # answered yet, so the twin is knowingly out of sync
+    # until a matching report arrives over MQTT. This is
+    # what lets the interface say "turning on" rather than
+    # claiming the device already obeyed.
+    device_repository.set_desired(
+        house_id,
+        device_id,
+        state,
+    )
+
     return {
         "house_id": house_id,
         "device_id": device_id,

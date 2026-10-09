@@ -4,9 +4,9 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor, and similar) work
 
 ## Project
 
-Digital twin of a smart home, built for IDIG4110 at NTNU. Simulated devices publish over MQTT, a controller runs locally and keeps working when the platform is unreachable, and a FastAPI backend keeps the twin state and serves a dashboard.
+Digital twin of a smart home. Simulated devices publish over MQTT, a controller runs locally and keeps working when the platform is unreachable, and a FastAPI backend keeps the twin state and serves a dashboard.
 
-It is a university project. **The written report matters more than the code.** Decisions need to be explainable by a human at an oral exam, so prefer the simple solution that can be defended over the clever one that cannot.
+Prefer the simple solution that can be explained over the clever one that cannot. Every significant decision should be defensible by a human reading the code later.
 
 ## Layout
 
@@ -80,8 +80,8 @@ Follow `README.md`. In short: branch from `master`, never commit to `master`, on
 - Every repository method that is used gets at least one test.
 - A test that needs the network or a real provider account is not a unit test; isolate it or mark it.
 
-## Course requirements that affect how you work
+## Documentation expected alongside code
 
 - **AI use is logged.** Significant AI-assisted work is recorded: date, tool, task, what was kept, changed or rejected, and how it was verified. Agents should summarise their change clearly enough that this entry can be written from it.
-- **Architectural decisions get an ADR** in `docs/adr/`: context, options considered, decision, consequences. A decision without a recorded rationale cannot be defended at the exam.
-- **Requirements, risks and tests are referenced by ID** (`FR-…`, `QA-…`, `REG-…`, `R…`) wherever code implements one. Traceability is assessed.
+- **Architectural decisions get an ADR** in `docs/adr/`: context, options considered, decision, consequences. A decision without a recorded rationale is hard to revisit later.
+- **Requirements, risks and tests are referenced by ID** (`FR-…`, `QA-…`, `REG-…`, `R…`) wherever code implements one, so the chain from requirement to test stays traceable.

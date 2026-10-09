@@ -9,6 +9,11 @@ again against STORAGE_BACKEND=mongo, and the responses are
 compared. This is the evidence that replacing the storage
 engine changed nothing the API promises.
 
+Run `scripts/seed_db.py --reset` first. The two backends
+hold separate copies of the data, so they only have the
+same content immediately after seeding; anything written
+to one afterwards makes the comparison meaningless.
+
 Each backend runs in its own process, because the backend
 is chosen when modules are first imported.
 """

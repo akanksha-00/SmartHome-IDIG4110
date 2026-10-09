@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from smarthome_api.repositories.state_sync import is_in_sync
+
 
 class DeviceRepository:
 
@@ -220,6 +222,55 @@ class DeviceRepository:
             )
 
             device["state"].update(state)
+
+            device["in_sync"] = is_in_sync(
+                device["state"],
+                device.get("desired"),
+            )
+
+            self._save(devices)
+
+            return device
+
+        return None
+
+    # ==================================================
+    # DESIRED STATE
+    # ==================================================
+
+    def set_desired(
+        self,
+        house_id: str,
+        device_id: str,
+        desired: dict,
+    ):
+        """
+        Record what was asked of a device, so the gap
+        between requested and reported is visible until the
+        device answers.
+        """
+
+        devices = self._load()
+
+        for device in devices:
+
+            if device.get("id") != device_id:
+                continue
+
+            if device.get("house_id") != house_id:
+                return None
+
+            device.setdefault(
+                "desired",
+                {},
+            )
+
+            device["desired"].update(desired)
+
+            device["in_sync"] = is_in_sync(
+                device.get("state"),
+                device["desired"],
+            )
 
             self._save(devices)
 
