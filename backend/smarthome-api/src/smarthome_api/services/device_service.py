@@ -1,4 +1,5 @@
 from smarthome_api.repositories.factory import (
+    command_repository,
     device_repository,
     event_repository,
     house_repository,
@@ -256,6 +257,14 @@ async def handle_device_state(
         house_id,
         device_id,
         state,
+    )
+
+    command_repository.expire_overdue()
+
+    command_repository.confirm_matching(
+        house_id,
+        device_id,
+        (updated_device or {}).get("state", {}),
     )
 
     thresholds = device.get(

@@ -84,6 +84,25 @@ async def main() -> None:
         name="idx_state_diverging",
     )
 
+    # The unique request_id is the whole duplicate
+    # suppression mechanism: a repeated request fails to
+    # insert instead of commanding the device twice.
+    await db.commands.create_index(
+        [("request_id", ASCENDING)],
+        unique=True,
+        name="uq_request_id",
+    )
+
+    await db.commands.create_index(
+        [("house_id", ASCENDING), ("created_at", DESCENDING)],
+        name="idx_commands_by_house",
+    )
+
+    await db.commands.create_index(
+        [("status", ASCENDING), ("expires_at", ASCENDING)],
+        name="idx_expiry_sweep",
+    )
+
     await db.events.create_index(
         [("house_id", ASCENDING), ("observed_at", DESCENDING)],
         name="idx_events_by_house",
