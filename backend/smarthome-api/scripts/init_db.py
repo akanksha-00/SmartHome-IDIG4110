@@ -16,6 +16,7 @@ import asyncio
 from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
 
 from smarthome_api.config import settings
+from smarthome_api.db.validators import VALIDATORS
 
 
 # Raw readings are kept for 90 days. Aggregates and
@@ -53,6 +54,28 @@ async def main() -> None:
 
     else:
         print("state_history already exists, left alone")
+
+    # ==================================================
+    # VALIDATORS
+    # ==================================================
+
+    for name, validator in VALIDATORS.items():
+
+        if name not in existing:
+            await db.create_collection(name)
+
+        # "moderate" leaves documents that already break the
+        # rules alone, so applying this to a running database
+        # cannot make existing records unwritable.
+        await db.command(
+            "collMod",
+            name,
+            validator=validator,
+            validationLevel="moderate",
+            validationAction="error",
+        )
+
+    print(f"validators applied to {len(VALIDATORS)} collections")
 
     # ==================================================
     # INDEXES
