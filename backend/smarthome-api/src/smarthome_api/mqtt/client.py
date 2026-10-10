@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from fastapi_mqtt import FastMQTT, MQTTConfig
@@ -19,6 +20,10 @@ from smarthome_api.services.device_service import (
 )
 
 
+logger = logging.getLogger("smarthome.mqtt")
+security_logger = logging.getLogger("smarthome.security")
+
+
 mqtt_config = MQTTConfig(
     host=os.getenv("MQTT_HOST", "localhost"),
     port=int(os.getenv("MQTT_PORT", "1883")),
@@ -29,19 +34,25 @@ mqtt = FastMQTT(config=mqtt_config)
 
 @mqtt.on_connect()
 def on_connect(client, flags, rc, properties):
-    print("Connected to MQTT broker")
+    logger.info(
+        "Connected to MQTT broker",
+        extra={"event": "mqtt_connected"},
+    )
 
     mqtt.client.subscribe(EVENT_SUBSCRIPTION)
     mqtt.client.subscribe(STATE_SUBSCRIPTION)
 
-    print(
-        f"Subscribed to: "
-        f"{EVENT_SUBSCRIPTION}"
-    )
-
-    print(
-        f"Subscribed to: "
-        f"{STATE_SUBSCRIPTION}"
+    logger.info(
+        "Subscribed to MQTT topics",
+        extra={
+            "event": "mqtt_subscribed",
+            "details": {
+                "topics": [
+                    EVENT_SUBSCRIPTION,
+                    STATE_SUBSCRIPTION,
+                ]
+            },
+        },
     )
 
 
@@ -53,46 +64,42 @@ async def on_message(
     qos,
     properties,
 ):
-    print("MQTT message received")
-    print(f"Topic:   {topic}")
-    print(f"Payload: {payload.decode()}")
-
     parts = topic.split("/")
 
-    if len(parts) != 4:
-        print(
-            f"Ignoring invalid MQTT topic: "
-            f"{topic}"
+    if len(parts) != 4 or parts[0] != "smarthome":
+        security_logger.warning(
+            "Rejected MQTT message with invalid topic",
+            extra={"event": "mqtt_invalid_topic"},
         )
         return
 
     _, house_id, device_id, message_type = parts
 
-    # ==================================================
-    # EVENT
-    # ==================================================
+    try:
+        payload_text = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        security_logger.warning(
+            "Rejected MQTT message with invalid encoding",
+            extra={"event": "mqtt_invalid_encoding"},
+        )
+        return
 
     if message_type == "event":
-
         try:
-            data = json.loads(
-                payload.decode()
+            data = json.loads(payload_text)
+            message = DeviceEvent.model_validate(data)
+
+        except (json.JSONDecodeError, ValueError):
+            security_logger.warning(
+                "Rejected invalid MQTT event payload",
+                extra={
+                    "event": "mqtt_invalid_event",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                    },
+                },
             )
-
-            message = DeviceEvent.model_validate(
-                data
-            )
-
-        except (
-            json.JSONDecodeError,
-            ValueError,
-        ) as exc:
-
-            print(
-                f"Invalid MQTT event: "
-                f"{exc}"
-            )
-
             return
 
         result = await handle_device_event(
@@ -103,51 +110,67 @@ async def on_message(
         )
 
         if result is None:
+            logger.warning(
+                "MQTT event was not processed",
+                extra={
+                    "event": "mqtt_event_not_processed",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                    },
+                },
+            )
             return
 
-        print(
-            f"Event accepted: "
-            f"{device_id} → "
-            f"{message.event}="
-            f"{message.value}"
+        logger.info(
+            "Device event processed",
+            extra={
+                "event": "device_event_processed",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": message.event,
+                    "value": message.value,
+                    "alert_triggered": result["alert"],
+                    "notification_message": (
+                        result.get("notification_message")
+                        if result["alert"]
+                        else None
+                    ),
+                },
+            },
         )
 
-        # Check whether the event triggered
-        # an alert.
         if result["alert"]:
-
-            print(
-                f"🚨 ALERT: "
-                f"{result['notification_message']}"
+            security_logger.warning(
+                "Smart home alert triggered",
+                extra={
+                    "event": "device_alert",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                    },
+                },
             )
 
         return
 
-    # ==================================================
-    # STATE
-    # ==================================================
-
     if message_type == "state":
-
         try:
-            data = json.loads(
-                payload.decode()
+            data = json.loads(payload_text)
+            message = DeviceStateMessage.model_validate(data)
+
+        except (json.JSONDecodeError, ValueError):
+            security_logger.warning(
+                "Rejected invalid MQTT state payload",
+                extra={
+                    "event": "mqtt_invalid_state",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                    },
+                },
             )
-
-            message = DeviceStateMessage.model_validate(
-                data
-            )
-
-        except (
-            json.JSONDecodeError,
-            ValueError,
-        ) as exc:
-
-            print(
-                f"Invalid MQTT state: "
-                f"{exc}"
-            )
-
             return
 
         try:
@@ -158,64 +181,96 @@ async def on_message(
             )
 
         except ValueError as exc:
-
-            print(
-                f"Invalid device state: "
-                f"{exc}"
+            logger.warning(
+                "Rejected invalid device state",
+                extra={
+                    "event": "device_state_rejected",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                        "reason": str(exc),
+                    },
+                },
             )
-
             return
 
         if result is None:
-
-            print(
-                f"Ignoring MQTT state: "
-                f"device '{device_id}' "
-                f"does not exist"
+            logger.warning(
+                "State received for unknown device",
+                extra={
+                    "event": "mqtt_unknown_device",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                    },
+                },
             )
-
             return
 
-        print(
-            f"State accepted: "
-            f"{device_id} → "
-            f"{message.state}"
+        logger.info(
+            "Device state processed",
+            extra={
+                "event": "device_state_processed",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                },
+            },
         )
 
-        # Check whether any state capability
-        # triggered an alert.
         for alert in result["alerts"]:
-
-            print(
-                f"🚨 ALERT: "
-                f"{alert['notification_message']}"
+            security_logger.warning(
+                "Smart home state alert triggered",
+                extra={
+                    "event": "device_state_alert",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                    },
+                },
             )
 
         return
 
-    # ==================================================
-    # UNKNOWN MESSAGE TYPE
-    # ==================================================
-
-    print(
-        f"Ignoring unknown MQTT "
-        f"message type: {message_type}"
+    security_logger.warning(
+        "Rejected MQTT message with unknown type",
+        extra={"event": "mqtt_unknown_message_type"},
     )
 
 
-# ==================================================
-# PUBLISH
-# ==================================================
+def publish(topic: str, message: str):
+    parts = topic.split("/")
+    details = {"topic": topic}
 
-def publish(
-    topic: str,
-    message: str,
-):
-    print(f"MQTT PUBLISH: {topic}")
-    print(f"MQTT PAYLOAD: {message}")
-    print(f"MQTT CONNECTED: {mqtt.client.is_connected}")
+    if len(parts) >= 4 and parts[0] == "smarthome":
+        details["house_id"] = parts[1]
+        details["device_id"] = parts[2]
 
-    mqtt.publish(
-        topic,
-        message,
+    if not mqtt.client.is_connected:
+        logger.error(
+            "Cannot publish MQTT message: client disconnected",
+            extra={
+                "event": "mqtt_publish_failed",
+                "details": details,
+            },
+        )
+        raise RuntimeError("MQTT client is not connected")
+
+    # Log BEFORE calling publish, so we know the function was reached.
+    logger.info(
+        "Attempting MQTT publish",
+        extra={
+            "event": "mqtt_publish_attempted",
+            "details": details,
+        },
+    )
+
+    mqtt.publish(topic, message)
+
+    logger.info(
+        "MQTT publish call returned",
+        extra={
+            "event": "mqtt_publish_requested",
+            "details": details,
+        },
     )

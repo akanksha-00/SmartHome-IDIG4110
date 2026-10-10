@@ -3,6 +3,9 @@ from smarthome_api.repositories.house_repository import HouseRepository
 from smarthome_api.repositories.room_repository import RoomRepository
 from smarthome_api.services.threshold_service import evaluate_threshold
 from smarthome_api.websocket.manager import manager
+import logging
+
+logger = logging.getLogger("smarthome")
 device_repository = DeviceRepository()
 house_repository = HouseRepository()
 room_repository = RoomRepository()
@@ -390,18 +393,32 @@ async def handle_device_event(
     )
 
     if device is None:
-        print(
-            f"Ignoring MQTT event: "
-            f"device '{device_id}' does not exist"
+        logger.warning(
+            "MQTT event rejected: unknown device",
+            extra={
+                "event": "mqtt_event_unknown_device",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                },
+            },
         )
         return None
 
     capabilities = device.get("capabilities", {})
 
     if event not in capabilities:
-        print(
-            f"Ignoring MQTT event: "
-            f"device '{device_id}' does not support '{event}'"
+        logger.warning(
+            "MQTT event rejected: unsupported capability",
+            extra={
+                "event": "mqtt_event_unsupported_capability",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                },
+            },
         )
         return None
 
@@ -414,9 +431,17 @@ async def handle_device_event(
             {event: value},
         )
     except ValueError as exc:
-        print(
-            f"Ignoring MQTT event: "
-            f"invalid value for '{event}': {exc}"
+        logger.warning(
+            "MQTT event rejected: invalid value",
+            extra={
+                "event": "mqtt_event_invalid_value",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                    "reason": str(exc),
+                },
+            },
         )
         return None
 
