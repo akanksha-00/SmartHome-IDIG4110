@@ -1,5 +1,8 @@
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+from smarthome_api.repositories.state_sync import is_in_sync
 
 
 class DeviceRepository:
@@ -220,6 +223,108 @@ class DeviceRepository:
             )
 
             device["state"].update(state)
+
+            device["in_sync"] = is_in_sync(
+                device["state"],
+                device.get("desired"),
+            )
+
+            device["available"] = True
+            device["last_seen_at"] = datetime.now(
+                timezone.utc
+            ).isoformat()
+
+            self._save(devices)
+
+            return device
+
+        return None
+
+    # ==================================================
+    # AVAILABILITY
+    # ==================================================
+
+    def mark_stale(
+        self,
+        stale_after_seconds: int,
+    ):
+        """
+        Mark devices that have gone quiet as unavailable.
+        """
+
+        cutoff = datetime.now(timezone.utc) - timedelta(
+            seconds=stale_after_seconds
+        )
+
+        devices = self._load()
+
+        gone = []
+
+        for device in devices:
+
+            if not device.get("available"):
+                continue
+
+            last_seen = device.get("last_seen_at")
+
+            if not last_seen:
+                continue
+
+            if datetime.fromisoformat(last_seen) >= cutoff:
+                continue
+
+            device["available"] = False
+
+            gone.append(
+                {
+                    "id": device["id"],
+                    "house_id": device["house_id"],
+                    "last_seen_at": last_seen,
+                }
+            )
+
+        if gone:
+            self._save(devices)
+
+        return gone
+
+    # ==================================================
+    # DESIRED STATE
+    # ==================================================
+
+    def set_desired(
+        self,
+        house_id: str,
+        device_id: str,
+        desired: dict,
+    ):
+        """
+        Record what was asked of a device, so the gap
+        between requested and reported is visible until the
+        device answers.
+        """
+
+        devices = self._load()
+
+        for device in devices:
+
+            if device.get("id") != device_id:
+                continue
+
+            if device.get("house_id") != house_id:
+                return None
+
+            device.setdefault(
+                "desired",
+                {},
+            )
+
+            device["desired"].update(desired)
+
+            device["in_sync"] = is_in_sync(
+                device.get("state"),
+                device["desired"],
+            )
 
             self._save(devices)
 

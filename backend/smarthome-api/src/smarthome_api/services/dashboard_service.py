@@ -1,11 +1,8 @@
-from smarthome_api.repositories.house_repository import HouseRepository
-from smarthome_api.repositories.room_repository import RoomRepository
-from smarthome_api.repositories.device_repository import DeviceRepository
-
-
-house_repository = HouseRepository()
-room_repository = RoomRepository()
-device_repository = DeviceRepository()
+from smarthome_api.repositories.factory import (
+    device_repository,
+    house_repository,
+    room_repository,
+)
 
 
 def get_house_dashboard(house_id: str):

@@ -1,8 +1,10 @@
 import json
+
 import logging
-import os
 
 from fastapi_mqtt import FastMQTT, MQTTConfig
+
+from smarthome_api.config import settings
 
 from smarthome_api.mqtt.topics import (
     EVENT_SUBSCRIPTION,
@@ -25,8 +27,8 @@ security_logger = logging.getLogger("smarthome.security")
 
 
 mqtt_config = MQTTConfig(
-    host=os.getenv("MQTT_HOST", "localhost"),
-    port=int(os.getenv("MQTT_PORT", "1883")),
+    host=settings.mqtt_host,
+    port=settings.mqtt_port,
 )
 
 mqtt = FastMQTT(config=mqtt_config)
@@ -140,20 +142,26 @@ async def on_message(
                 },
             },
         )
+        
+    if result["alert"]:
+        security_logger.warning(
+        "Smart home alert triggered",
+        extra={
+            "event": "device_alert",
+            "details": {
+                "house_id": house_id,
+                "device_id": device_id,
+                "event_type": message.event,
+                "value": message.value,
+                "notification_message": result.get(
+                    "notification_message"
+                ),
+            },
+        },
+    )
 
-        if result["alert"]:
-            security_logger.warning(
-                "Smart home alert triggered",
-                extra={
-                    "event": "device_alert",
-                    "details": {
-                        "house_id": house_id,
-                        "device_id": device_id,
-                    },
-                },
-            )
+    return
 
-        return
 
     if message_type == "state":
         try:
@@ -226,13 +234,18 @@ async def on_message(
                     "details": {
                         "house_id": house_id,
                         "device_id": device_id,
+                        "capability": alert.get("capability"),
+                        "value": alert.get("value"),
+                        "notification_message": alert.get(
+                            "notification_message"
+                        ),
                     },
                 },
             )
 
         return
 
-    security_logger.warning(
+security_logger.warning(
         "Rejected MQTT message with unknown type",
         extra={"event": "mqtt_unknown_message_type"},
     )
@@ -256,7 +269,7 @@ def publish(topic: str, message: str):
         )
         raise RuntimeError("MQTT client is not connected")
 
-    # Log BEFORE calling publish, so we know the function was reached.
+    # Log BEFORE calling publish, so correct info logged
     logger.info(
         "Attempting MQTT publish",
         extra={
