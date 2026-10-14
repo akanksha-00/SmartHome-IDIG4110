@@ -57,7 +57,6 @@ def on_connect(client, flags, rc, properties):
         },
     )
 
-
 @mqtt.on_message()
 async def on_message(
     client,
@@ -68,6 +67,8 @@ async def on_message(
 ):
     parts = topic.split("/")
 
+    # Validate topic structure:
+    # smarthome/{house_id}/{device_id}/{message_type}
     if len(parts) != 4 or parts[0] != "smarthome":
         security_logger.warning(
             "Rejected MQTT message with invalid topic",
@@ -77,6 +78,7 @@ async def on_message(
 
     _, house_id, device_id, message_type = parts
 
+    # Decode payload
     try:
         payload_text = payload.decode("utf-8")
     except UnicodeDecodeError:
@@ -86,6 +88,9 @@ async def on_message(
         )
         return
 
+    # --------------------------------------------------
+    # EVENT MESSAGES
+    # --------------------------------------------------
     if message_type == "event":
         try:
             data = json.loads(payload_text)
@@ -142,27 +147,29 @@ async def on_message(
                 },
             },
         )
-        
-    if result["alert"]:
-        security_logger.warning(
-        "Smart home alert triggered",
-        extra={
-            "event": "device_alert",
-            "details": {
-                "house_id": house_id,
-                "device_id": device_id,
-                "event_type": message.event,
-                "value": message.value,
-                "notification_message": result.get(
-                    "notification_message"
-                ),
-            },
-        },
-    )
 
-    return
+        if result["alert"]:
+            security_logger.warning(
+                "Smart home alert triggered",
+                extra={
+                    "event": "device_alert",
+                    "details": {
+                        "house_id": house_id,
+                        "device_id": device_id,
+                        "event_type": message.event,
+                        "value": message.value,
+                        "notification_message": result.get(
+                            "notification_message"
+                        ),
+                    },
+                },
+            )
 
+        return
 
+    # --------------------------------------------------
+    # STATE MESSAGES
+    # --------------------------------------------------
     if message_type == "state":
         try:
             data = json.loads(payload_text)
@@ -245,12 +252,13 @@ async def on_message(
 
         return
 
-security_logger.warning(
+    # --------------------------------------------------
+    # UNKNOWN MESSAGE TYPES
+    # --------------------------------------------------
+    security_logger.warning(
         "Rejected MQTT message with unknown type",
         extra={"event": "mqtt_unknown_message_type"},
     )
-
-
 def publish(topic: str, message: str):
     parts = topic.split("/")
     details = {"topic": topic}
