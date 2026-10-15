@@ -250,9 +250,6 @@
     ],
     "/api/v1/houses/{house_id}/rooms/{room_id}/devices": [
       "get"
-    ],
-    "/mqtt-test": [
-      "post"
     ]
   }
 }

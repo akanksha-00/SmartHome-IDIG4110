@@ -1,3 +1,4 @@
+import logging
 from smarthome_api.config import settings
 from smarthome_api.repositories.factory import (
     command_repository,
@@ -9,6 +10,7 @@ from smarthome_api.repositories.factory import (
 from smarthome_api.services.threshold_service import evaluate_threshold
 from smarthome_api.websocket.manager import manager
 
+logger = logging.getLogger("smarthome")
 
 # ==================================================
 # DEVICES
@@ -317,8 +319,10 @@ async def handle_device_state(
         house_id,
         {
             "type": "device_state",
+            "house_id":house_id,
             "device_id": device_id,
             "state": state,
+            "alerts": alerts
         },
     )
 
@@ -485,18 +489,32 @@ async def handle_device_event(
     )
 
     if device is None:
-        print(
-            f"Ignoring MQTT event: "
-            f"device '{device_id}' does not exist"
+        logger.warning(
+            "MQTT event rejected: unknown device",
+            extra={
+                "event": "mqtt_event_unknown_device",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                },
+            },
         )
         return None
 
     capabilities = device.get("capabilities", {})
 
     if event not in capabilities:
-        print(
-            f"Ignoring MQTT event: "
-            f"device '{device_id}' does not support '{event}'"
+        logger.warning(
+            "MQTT event rejected: unsupported capability",
+            extra={
+                "event": "mqtt_event_unsupported_capability",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                },
+            },
         )
         return None
 
@@ -509,9 +527,17 @@ async def handle_device_event(
             {event: value},
         )
     except ValueError as exc:
-        print(
-            f"Ignoring MQTT event: "
-            f"invalid value for '{event}': {exc}"
+        logger.warning(
+            "MQTT event rejected: invalid value",
+            extra={
+                "event": "mqtt_event_invalid_value",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                    "reason": str(exc),
+                },
+            },
         )
         return None
 
@@ -563,6 +589,7 @@ async def handle_device_event(
         house_id,
         {
             "type": "device_event",
+            "house_id": house_id,
             "device_id": device_id,
             "event": event,
             "value": value,
