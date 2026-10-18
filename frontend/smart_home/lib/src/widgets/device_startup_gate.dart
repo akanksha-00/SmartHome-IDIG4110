@@ -4,8 +4,9 @@ import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 
 /// Startup UI consumes BLoC state; rebuilding this widget never fetches data.
 class DeviceStartupGate extends StatelessWidget {
-  const DeviceStartupGate({super.key, required this.child});
+  const DeviceStartupGate({super.key, required this.child, this.onSignOut});
   final Widget child;
+  final VoidCallback? onSignOut;
 
   @override
   Widget build(BuildContext context) => BlocBuilder<DeviceBloc, DeviceState>(
@@ -26,19 +27,27 @@ class DeviceStartupGate extends StatelessWidget {
                       icon: const Icon(Icons.refresh),
                       label: const Text('Retry'),
                     ),
+                    if (onSignOut != null)
+                      TextButton(
+                          onPressed: onSignOut,
+                          child: const Text('Back to sign in')),
                   ],
                 ),
               ),
             );
           }
-          return const Scaffold(
+          return Scaffold(
             body: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading devices…'),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text('Loading devices…'),
+                  if (onSignOut != null)
+                    TextButton(
+                        onPressed: onSignOut,
+                        child: const Text('Back to sign in')),
                 ],
               ),
             ),
