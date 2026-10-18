@@ -16,7 +16,6 @@ class _SignInPageState extends State<SignInPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _obscurePassword = true;
-  bool _rememberMe = false;
 
   @override
   void dispose() {
@@ -29,8 +28,7 @@ class _SignInPageState extends State<SignInPage> {
     final auth = context.read<AuthCubit>();
     if (auth.state.isBusy || !_form.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
-    auth.signIn(
-        email: _email.text, password: _password.text, rememberMe: _rememberMe);
+    auth.signIn(email: _email.text, password: _password.text);
   }
 
   void _showInfo(String title, String text) => showDialog<void>(
@@ -146,40 +144,6 @@ class _SignInPageState extends State<SignInPage> {
                   onChanged: (_) => context.read<AuthCubit>().clearError(),
                   onFieldSubmitted: (_) => _submit(),
                 ),
-                const SizedBox(height: 14),
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 12,
-                  children: [
-                    InkWell(
-                      onTap: state.isBusy
-                          ? null
-                          : () => setState(() => _rememberMe = !_rememberMe),
-                      borderRadius: BorderRadius.circular(6),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Checkbox(
-                          key: const ValueKey('auth-remember-me'),
-                          value: _rememberMe,
-                          activeColor: authAmber,
-                          checkColor: Colors.black,
-                          visualDensity: VisualDensity.compact,
-                          onChanged: state.isBusy
-                              ? null
-                              : (value) => setState(() => _rememberMe = value!),
-                        ),
-                        const Text('Remember me'),
-                        const SizedBox(width: 8),
-                      ]),
-                    ),
-                    TextButton(
-                      onPressed: () => _showInfo('Reset your password',
-                          'Password reset is not available yet.'),
-                      style: TextButton.styleFrom(foregroundColor: authAmber),
-                      child: const Text('Forgot password?'),
-                    ),
-                  ],
-                ),
                 if (state.error != null) ...[
                   const SizedBox(height: 12),
                   Semantics(
@@ -220,15 +184,14 @@ class _SignInPageState extends State<SignInPage> {
                           Text(state.isBusy ? 'Signing in…' : 'Sign in',
                               style: const TextStyle(
                                   fontSize: 18, fontWeight: FontWeight.w600)),
-                          const SizedBox(width: 14),
-                          if (state.isBusy)
+                          if (state.isBusy) ...[
+                            const SizedBox(width: 14),
                             const SizedBox(
                                 width: 18,
                                 height: 18,
                                 child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.black))
-                          else
-                            const Icon(Icons.arrow_forward, size: 22),
+                                    strokeWidth: 2, color: Colors.black)),
+                          ],
                         ],
                       ),
                     ),

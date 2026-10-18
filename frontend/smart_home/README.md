@@ -10,10 +10,8 @@ Use the local dummy user from `lib/src/dummyData/auth_data.dart`:
 - Email: `alex@example.com`
 - Password: `SmartHome123!`
 
-**Remember me** persists only
-the demo user ID using Flutter's `shared_preferences` package, and restores the
-demo session on reload. Without it, a new app instance requires sign-in. Settings
-→ Account & app → Sign out clears the remembered session and returns to sign-in.
+Sign-in is session-only for now. Each fresh app launch or reload shows the
+authentication screen. Settings → Account & app → Sign out returns to sign-in.
 Device/room requests and the house WebSocket start only after sign-in; their
 BLoCs and connection are disposed on sign-out.
 
@@ -21,9 +19,9 @@ BLoCs and connection are disposed on sign-out.
 locally and makes no authentication HTTP requests. Replace its methods with the
 real API integration when the contract is available. All authentication URLs
 are empty placeholders in `lib/src/config/auth_api_endpoints.dart`; no backend
-authentication schema or paths are assumed. Registration and password recovery
-currently show an availability message rather than creating accounts or
-pretending to send a reset email. This demo session is not server authentication.
+authentication schema or paths are assumed. Registration currently shows an
+availability message rather than creating an account. This demo session is not
+server authentication.
 
 The sign-in illustration is saved at
 `assets/images/authentication/smart_home.png`. It was generated with the built-in

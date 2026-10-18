@@ -16,7 +16,7 @@ import 'helpers/auth_test_data.dart';
 import 'helpers/device_test_data.dart';
 
 Widget authHarness(AuthRepository repository) => BlocProvider(
-      create: (_) => AuthCubit(repository: repository)..restoreSession(),
+      create: (_) => AuthCubit(repository: repository),
       child: MaterialApp(
         theme: AppTheme.dark(),
         home: AuthenticationGate(
@@ -110,19 +110,17 @@ void main() {
   });
 
   testWidgets(
-      'Remember me restores the next app instance and sign-out clears it',
+      'sign-in is required on launch and again after restarting the app',
       (tester) async {
-    final preferences = MemoryAuthPreferences();
+    final preferences = MemoryAuthPreferences()
+      ..values[AuthRepository.rememberedUserKey] = dummyAuthUser.id;
     await openAuth(tester, AuthRepository(preferences: preferences));
-    await tester.tap(find.byKey(const ValueKey('auth-remember-me')));
+    expect(find.text('Welcome back'), findsOneWidget);
     await signInAsDummyUser(tester);
     await tester.pumpAndSettle();
     await tester.pumpWidget(const SizedBox.shrink());
     await tester
         .pumpWidget(authHarness(AuthRepository(preferences: preferences)));
-    await tester.pumpAndSettle();
-    expect(find.text('Signed in as Alex'), findsOneWidget);
-    await tester.tap(find.text('Sign out'));
     await tester.pumpAndSettle();
     expect(preferences.values, isEmpty);
     expect(find.text('Welcome back'), findsOneWidget);

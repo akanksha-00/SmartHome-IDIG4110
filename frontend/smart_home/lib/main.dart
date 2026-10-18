@@ -51,8 +51,7 @@ class _MyAppState extends State<MyApp> {
         child: RepositoryProvider<AuthRepository>.value(
           value: _authRepository,
           child: BlocProvider<AuthCubit>(
-            create: (_) =>
-                AuthCubit(repository: _authRepository)..restoreSession(),
+            create: (_) => AuthCubit(repository: _authRepository),
             child: MaterialApp(
               title: 'Smart Home',
               theme: AppTheme.light(),
