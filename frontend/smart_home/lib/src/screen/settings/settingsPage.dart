@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
 import 'package:smart_home/src/controllers/app_settings_controller.dart';
 import 'package:smart_home/src/dummyData/devicesData.dart';
 import 'package:smart_home/src/dummyData/safety_data.dart';
@@ -170,7 +172,9 @@ class _SettingsPageState extends State<SettingsPage> {
         selectedForegroundColor: colors.onPrimary);
   }
 
-  List<_SettingsSection> _sections(AppSettingsController settings) => [
+  List<_SettingsSection> _sections(
+          AppSettingsController settings, AuthCubit? auth) =>
+      [
         _SettingsSection('Home', Icons.home_outlined, [
           _SettingsEntry(
               'Home name ${settings.homeName}',
@@ -311,7 +315,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: () => _showInfo(
                       'Privacy & data',
                       const Text(
-                          'Home details and preferences are kept for this app session. Account sign-in, cloud sync and external notification delivery are not connected yet.')))),
+                          'Home details and preferences are kept for this app session. Cloud account sync and external notification delivery are not connected yet.')))),
           _SettingsEntry(
               'About version licenses',
               _valueRow('about', 'About', 'Smart Home · 1.0.0',
@@ -323,8 +327,14 @@ class _SettingsPageState extends State<SettingsPage> {
                           const Icon(Icons.home_outlined, size: 36)))),
           _SettingsEntry(
               'Sign out account session',
-              _valueRow('sign-out', 'Sign out', 'No signed-in session',
-                  disabled: true)),
+              _valueRow('sign-out', 'Sign out',
+                  auth?.state.user?.email ?? 'No signed-in session',
+                  onTap: auth == null ||
+                          auth.state.user == null ||
+                          auth.state.isBusy
+                      ? null
+                      : () => auth.signOut(),
+                  disabled: auth?.state.user == null)),
         ]),
       ];
 
@@ -391,12 +401,13 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final settings = widget.controller ?? AppSettingsScope.of(context);
+    final auth = context.watch<AuthCubit?>();
     return ListenableBuilder(
         listenable: settings,
         builder: (context, child) {
           final query = _query.trim().toLowerCase();
           final cards = <Widget>[];
-          for (final section in _sections(settings)) {
+          for (final section in _sections(settings, auth)) {
             final entries = section.title.toLowerCase().contains(query)
                 ? section.entries
                 : section.entries
