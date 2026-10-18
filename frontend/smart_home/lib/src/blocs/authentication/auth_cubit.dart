@@ -6,11 +6,13 @@ export 'auth_state.dart';
 
 class AuthCubit extends Cubit<AuthState> {
   AuthCubit({required this.repository})
-      : super(const AuthState(status: AuthStatus.restoring));
+      : super(const AuthState(status: AuthStatus.signedOut));
 
   final AuthRepository repository;
 
   Future<void> restoreSession() async {
+    if (state.isBusy || state.user != null) return;
+    emit(const AuthState(status: AuthStatus.restoring));
     try {
       final user = await repository.restoreSession();
       if (isClosed) return;
