@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     mqtt_port: int = 1883
 
     # ==================================================
+    # AUTHENTICATION — SUPABASE
+    # ==================================================
+
+    # Supabase project URL, used to verify access tokens.
+    supabase_url: str = "https://yrameppdhqbfturciptc.supabase.co"
+
+    # ==================================================
     # DEVICES
     # ==================================================
 
