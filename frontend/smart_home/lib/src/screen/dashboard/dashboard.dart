@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
 import 'package:smart_home/src/blocs/rooms/room_bloc.dart';
 import 'package:smart_home/src/screen/dashboard/dashboard_notifications.dart';
 import 'package:smart_home/src/controllers/app_settings_controller.dart';
@@ -149,6 +150,34 @@ class _DashboardState extends State<Dashboard> {
                           label: Text(destination.label),
                         ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  child: BlocBuilder<AuthCubit, AuthState>(
+                    builder: (context, state) => TextButton(
+                      key: const ValueKey('sidebar-logout'),
+                      onPressed: state.isBusy
+                          ? null
+                          : () => context.read<AuthCubit>().signOut(),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size.fromHeight(48),
+                        foregroundColor: Theme.of(context)
+                            .navigationRailTheme
+                            .unselectedIconTheme
+                            ?.color,
+                      ),
+                      child: const Row(
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            child: Icon(Icons.logout, size: 28),
+                          ),
+                          Text('Logout', style: TextStyle(fontSize: 18)),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],

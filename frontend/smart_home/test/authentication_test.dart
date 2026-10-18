@@ -171,40 +171,46 @@ void main() {
     });
   }
 
-  testWidgets(
-      'MyApp fetches no house data until sign-in and Settings signs out',
-      (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 1100));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    var calls = 0;
-    final source = testDeviceBloc((_) async {
-      calls++;
-      return jsonResponse([]);
+  for (final logoutLocation in ['Settings', 'sidebar']) {
+    testWidgets(
+        'MyApp fetches no house data until sign-in and $logoutLocation signs out',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 1100));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var calls = 0;
+      final source = testDeviceBloc((_) async {
+        calls++;
+        return jsonResponse([]);
+      });
+      await tester.pumpWidget(MyApp(
+          authRepository: testAuthRepository(),
+          deviceRepository: source.repository));
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(calls, 0);
+      await signInAsDummyUser(tester);
+      await tester.pumpAndSettle();
+      expect(calls, 2);
+      expect(find.text('Welcome, Alex'), findsOneWidget);
+      if (logoutLocation == 'Settings') {
+        await tester.tap(find.text('Settings'));
+        await tester.pumpAndSettle();
+      }
+      final signOut = find.byKey(ValueKey(logoutLocation == 'Settings'
+          ? 'settings-row-sign-out'
+          : 'sidebar-logout'));
+      await tester.ensureVisible(signOut);
+      await tester.tap(signOut);
+      await tester.pumpAndSettle();
+      expect(find.text('Welcome back'), findsOneWidget);
+      expect(calls, 2);
+      await signInAsDummyUser(tester);
+      await tester.pumpAndSettle();
+      expect(calls, 4);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
     });
-    await tester.pumpWidget(MyApp(
-        authRepository: testAuthRepository(),
-        deviceRepository: source.repository));
-    await tester.pumpAndSettle();
-    expect(find.text('Welcome back'), findsOneWidget);
-    expect(calls, 0);
-    await signInAsDummyUser(tester);
-    await tester.pumpAndSettle();
-    expect(calls, 2);
-    expect(find.text('Welcome, Alex'), findsOneWidget);
-    await tester.tap(find.text('Settings'));
-    await tester.pumpAndSettle();
-    final signOut = find.byKey(const ValueKey('settings-row-sign-out'));
-    await tester.ensureVisible(signOut);
-    await tester.tap(signOut);
-    await tester.pumpAndSettle();
-    expect(find.text('Welcome back'), findsOneWidget);
-    expect(calls, 2);
-    await signInAsDummyUser(tester);
-    await tester.pumpAndSettle();
-    expect(calls, 4);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox.shrink());
-  });
+  }
 
   testWidgets('sign-out works while house requests are still pending',
       (tester) async {
