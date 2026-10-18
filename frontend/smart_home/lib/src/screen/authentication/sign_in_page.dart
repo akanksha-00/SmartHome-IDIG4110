@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
-import 'package:smart_home/src/dummyData/auth_data.dart';
 import 'package:smart_home/src/screen/authentication/widgets/auth_brand_panel.dart';
 import 'package:smart_home/src/theme/app_theme.dart';
 
@@ -45,42 +44,6 @@ class _SignInPageState extends State<SignInPage> {
             TextButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('Got it')),
-          ],
-        ),
-      );
-
-  void _showHelp() => showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Try your smart home'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Use this demo account to sign in.'),
-              const SizedBox(height: 20),
-              const Text('Email address', style: TextStyle(color: authMuted)),
-              const SizedBox(height: 6),
-              SelectableText(dummyAuthUser.email),
-              const SizedBox(height: 16),
-              const Text('Password', style: TextStyle(color: authMuted)),
-              const SizedBox(height: 6),
-              const SelectableText(dummyAuthPassword),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Close')),
-            FilledButton(
-              onPressed: () {
-                _email.text = dummyAuthUser.email;
-                _password.text = dummyAuthPassword;
-                context.read<AuthCubit>().clearError();
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Fill demo details'),
-            ),
           ],
         ),
       );
@@ -211,7 +174,7 @@ class _SignInPageState extends State<SignInPage> {
                     ),
                     TextButton(
                       onPressed: () => _showInfo('Reset your password',
-                          'Password reset is not available yet. Use Need help? to sign in with the demo account.'),
+                          'Password reset is not available yet.'),
                       style: TextButton.styleFrom(foregroundColor: authAmber),
                       child: const Text('Forgot password?'),
                     ),
@@ -279,19 +242,10 @@ class _SignInPageState extends State<SignInPage> {
                     const Text('New here?'),
                     TextButton(
                         onPressed: () => _showInfo('Create an account',
-                            'Account creation is not available yet. Use Need help? to try the demo account.'),
+                            'Account creation is not available yet.'),
                         style: TextButton.styleFrom(foregroundColor: authAmber),
                         child: const Text('Create an account')),
                   ],
-                ),
-                const SizedBox(height: 22),
-                Center(
-                  child: TextButton(
-                    onPressed: _showHelp,
-                    style: TextButton.styleFrom(foregroundColor: authMuted),
-                    child: const Text('Need help?',
-                        style: TextStyle(decoration: TextDecoration.underline)),
-                  ),
                 ),
               ],
             ),
