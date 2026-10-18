@@ -7,7 +7,6 @@ import 'package:smart_home/src/screen/automations/automations_page.dart';
 import 'package:smart_home/src/screen/safety/safety_page.dart';
 import 'package:smart_home/src/screen/home/homePage.dart';
 import 'package:smart_home/src/screen/settings/settingsPage.dart';
-import 'package:smart_home/src/screen/settings/widgets/settings_dialogs.dart';
 import 'package:smart_home/src/screen/energy/energyPage.dart';
 
 class Dashboard extends StatefulWidget {
@@ -150,32 +149,6 @@ class _DashboardState extends State<Dashboard> {
                           label: Text(destination.label),
                         ),
                     ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
-                  child: TextButton(
-                    onPressed: () {
-                      setState(() => _selectedIndex = 4);
-                      showProfileSettingsDialog(context, settings);
-                    },
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      foregroundColor: Theme.of(context)
-                          .navigationRailTheme
-                          .unselectedIconTheme
-                          ?.color,
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        SizedBox(
-                          width: 80,
-                          child: Icon(Icons.person_outline, size: 28),
-                        ),
-                        Text('Profile', style: TextStyle(fontSize: 14)),
-                      ],
-                    ),
                   ),
                 ),
               ],
