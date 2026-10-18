@@ -23,79 +23,37 @@ class HouseRepository:
     # ==================================================
     # READ
     # ==================================================
+def get_all(
+    self,
+    owner_id: str | None = None,
+    provider_id: str | None = None,
+):
+    query = {}
 
-    def get_all(self):
+    if owner_id is not None:
+        query["owner_id"] = owner_id
 
-        return [
-            to_api(document)
-            for document in self.collection.find()
-        ]
+    if provider_id is not None:
+        query["provider_id"] = provider_id
 
-    def get_by_id(
-        self,
-        house_id: str,
-    ):
+    return [
+        to_api(document)
+        for document in self.collection.find(query)
+    ]
 
-        return to_api(
-            self.collection.find_one({"_id": house_id})
-        )
+def get_by_id(
+    self,
+    house_id: str,
+    owner_id: str | None = None,
+    provider_id: str | None = None,
+):
+    query = {"_id": house_id}
 
-    # ==================================================
-    # CREATE
-    # ==================================================
+    if owner_id is not None:
+        query["owner_id"] = owner_id
 
-    def create(
-        self,
-        house: dict,
-    ):
+    if provider_id is not None:
+        query["provider_id"] = provider_id
 
-        document = to_document(house)
-
-        # House IDs must be unique. The _id index enforces
-        # this, so a duplicate is reported rather than
-        # silently overwriting.
-        if self.collection.find_one({"_id": document["_id"]}):
-            return None
-
-        self.collection.insert_one(document)
-
-        return to_api(document)
-
-    # ==================================================
-    # UPDATE
-    # ==================================================
-
-    def update(
-        self,
-        house_id: str,
-        data: dict,
-    ):
-
-        # The ID identifies the house and is not changed.
-        update_data = strip_identity(data)
-
-        if not update_data:
-            return self.get_by_id(house_id)
-
-        return to_api(
-            self.collection.find_one_and_update(
-                {"_id": house_id},
-                {"$set": update_data},
-                return_document=ReturnDocument.AFTER,
-            )
-        )
-
-    # ==================================================
-    # DELETE
-    # ==================================================
-
-    def delete(
-        self,
-        house_id: str,
-    ):
-
-        return to_api(
-            self.collection.find_one_and_delete(
-                {"_id": house_id}
-            )
-        )
+    document = self.collection.find_one(query)
+    return to_api(document)
