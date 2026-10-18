@@ -10,7 +10,7 @@ Use the local dummy user from `lib/src/dummyData/auth_data.dart`:
 - Email: `alex@example.com`
 - Password: `SmartHome123!`
 
-The **Need help?** action can fill these details. **Remember me** persists only
+**Remember me** persists only
 the demo user ID using Flutter's `shared_preferences` package, and restores the
 demo session on reload. Without it, a new app instance requires sign-in. Settings
 → Account & app → Sign out clears the remembered session and returns to sign-in.

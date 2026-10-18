@@ -86,15 +86,11 @@ void main() {
         isEmpty);
   });
 
-  testWidgets('password visibility and help fill the demo credentials',
+  testWidgets('password visibility preserves the typed password',
       (tester) async {
     await openAuth(tester, testAuthRepository());
-    await tester.tap(find.text('Need help?'));
-    await tester.pumpAndSettle();
-    expect(find.text(dummyAuthUser.email), findsOneWidget);
-    await tester.tap(find.text('Fill demo details'));
-    await tester.pumpAndSettle();
     final password = find.byKey(const ValueKey('auth-password'));
+    await tester.enterText(password, dummyAuthPassword);
     expect(tester.widget<TextFormField>(password).controller!.text,
         dummyAuthPassword);
     expect(
