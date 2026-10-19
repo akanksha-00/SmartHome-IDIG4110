@@ -1,17 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
 import 'package:smart_home/src/controllers/app_settings_controller.dart';
+import 'package:smart_home/src/config/supabase_config.dart';
 import 'package:smart_home/src/repositories/auth_repository.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
 import 'package:smart_home/src/repositories/room_repository.dart';
 import 'package:smart_home/src/repositories/house_realtime_repository.dart';
 import 'package:smart_home/src/screen/authentication/authentication_gate.dart';
 import 'package:smart_home/src/theme/app_theme.dart';
-import 'package:smart_home/src/widgets/house_session.dart';
+import 'package:smart_home/src/widgets/house_access_gate.dart';
 
-void main() {
-  runApp(const MyApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  AuthRepository repository;
+  if (!SupabaseConfig.isConfigured) {
+    repository = AuthRepository();
+  } else {
+    try {
+      await Supabase.initialize(
+        url: SupabaseConfig.url,
+        publishableKey: SupabaseConfig.publishableKey,
+        debug: false,
+        authOptions: const FlutterAuthClientOptions(
+          localStorage: EmptyLocalStorage(),
+          detectSessionInUri: false,
+        ),
+      );
+      repository = AuthRepository(client: Supabase.instance.client);
+    } catch (_) {
+      repository = AuthRepository(
+          configurationError:
+              'Could not initialize sign-in. Restart the app and try again.');
+    }
+  }
+  runApp(MyApp(authRepository: repository));
 }
 
 class MyApp extends StatefulWidget {
@@ -58,7 +82,7 @@ class _MyAppState extends State<MyApp> {
               darkTheme: AppTheme.dark(),
               themeMode: appSettings.themeMode,
               home: AuthenticationGate(
-                signedInBuilder: (context, user) => HouseSession(
+                signedInBuilder: (context, user) => HouseAccessGate(
                   key: ValueKey(user.id),
                   deviceRepository: widget.deviceRepository,
                   roomRepository: widget.roomRepository,

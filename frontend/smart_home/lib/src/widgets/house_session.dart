@@ -5,9 +5,9 @@ import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 import 'package:smart_home/src/blocs/notifications/notification_bloc.dart';
 import 'package:smart_home/src/blocs/rooms/room_bloc.dart';
 import 'package:smart_home/src/config/api_endpoints.dart';
-import 'package:smart_home/src/config/app_config.dart';
 import 'package:smart_home/src/dummyData/notification_data.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
+import 'package:smart_home/src/repositories/auth_repository.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
 import 'package:smart_home/src/repositories/house_realtime_repository.dart';
 import 'package:smart_home/src/repositories/room_repository.dart';
@@ -19,8 +19,16 @@ import 'package:smart_home/src/widgets/room_startup_gate.dart';
 /// Device/room state and the socket exist only while a user is signed in.
 class HouseSession extends StatefulWidget {
   const HouseSession(
-      {super.key, this.deviceRepository, this.roomRepository, this.realtime});
+      {super.key,
+      this.apiClient,
+      this.houseId,
+      this.deviceRepository,
+      this.roomRepository,
+      this.realtime})
+      : assert(deviceRepository != null || houseId != null);
 
+  final ApiClient? apiClient;
+  final String? houseId;
   final DeviceRepository? deviceRepository;
   final RoomRepository? roomRepository;
   final HouseRealtimeRepository? realtime;
@@ -41,13 +49,14 @@ class _HouseSessionState extends State<HouseSession>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final auth = context.read<AuthRepository>();
     if (widget.deviceRepository != null) {
       _devices = widget.deviceRepository!;
     } else {
-      final client = ApiClient();
-      _ownedApiClient = client;
-      _devices =
-          DeviceRepository(apiClient: client, houseId: AppConfig.houseId);
+      final client =
+          widget.apiClient ?? ApiClient(accessToken: () => auth.accessToken);
+      if (widget.apiClient == null) _ownedApiClient = client;
+      _devices = DeviceRepository(apiClient: client, houseId: widget.houseId!);
     }
     _rooms = widget.roomRepository ??
         RoomRepository(
@@ -56,7 +65,8 @@ class _HouseSessionState extends State<HouseSession>
         (widget.deviceRepository == null
             ? HouseRealtimeRepository(
                 socket: WebSocketService(
-                    endpoint: ApiEndpoints.houseWebSocket(_devices.houseId)))
+                    endpoint: ApiEndpoints.houseWebSocket(_devices.houseId),
+                    accessToken: () => auth.accessToken))
             : null);
   }
 

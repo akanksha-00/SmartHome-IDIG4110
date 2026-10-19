@@ -1,4 +1,4 @@
-"""Local Flutter web proxy: 127.0.0.1:8002 -> SSH tunnel 127.0.0.1:8001.
+"""Local Flutter web proxy: 127.0.0.1:8001 -> SSH tunnel 127.0.0.1:8000.
 
 Run from the Flutter project with: python3 tool/local_api_proxy.py
 """
@@ -77,7 +77,7 @@ class ApiProxyHandler(BaseHTTPRequestHandler):
             payload = response.read()
             content_type = response.getheader("Content-Type", "application/json")
         except (OSError, http.client.HTTPException):
-            self._error(502, "Cannot reach the backend. Check the SSH tunnel on port 8001.")
+            self._error(502, "Cannot reach the backend. Check the SSH tunnel on port 8000.")
             return
         finally:
             connection.close()

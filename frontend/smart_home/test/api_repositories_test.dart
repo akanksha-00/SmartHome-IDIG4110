@@ -45,6 +45,31 @@ DeviceRepository devicesWith(ApiClient api) =>
     DeviceRepository(apiClient: api, houseId: 'house-1');
 
 void main() {
+  test(
+      'every HTTP method reads the latest access token and clears it on logout',
+      () async {
+    String? token = 'first';
+    final seen = <String?>[];
+    final api = ApiClient(
+      accessToken: () => token,
+      client: MockClient((request) async {
+        seen.add(request.headers['authorization']);
+        return jsonResponse({});
+      }),
+    );
+    addTearDown(api.close);
+    const url = 'https://backend.example/api/v1/houses';
+    await api.get(url);
+    token = 'refreshed';
+    await api.post(url, {});
+    await api.patch(url, {});
+    await api.put(url, {});
+    await api.delete(url);
+    token = null;
+    await api.get(url);
+    expect(seen, ['Bearer first', ...List.filled(4, 'Bearer refreshed'), null]);
+  });
+
   test('house device route preserves complete generic API records', () async {
     final api = mockedApi((request) {
       expect(request.method, 'GET');
