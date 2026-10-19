@@ -14,6 +14,9 @@ LOCAL_ORIGIN = re.compile(r"http://(?:localhost|127\.0\.0\.1)(?::\d+)?")
 METHODS = "GET, HEAD, POST, PUT, PATCH, DELETE"
 HEADERS = "Accept, Content-Type, Authorization"
 
+BACKEND_PORT = 8000
+PROXY_PORT = 8001
+LOCALHOST = "127.0.0.1"
 
 class ApiProxyHandler(BaseHTTPRequestHandler):
     def _send(self, status, body=b"", content_type="application/json"):
@@ -67,7 +70,7 @@ class ApiProxyHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(length) if length else None
         headers = {name: self.headers[name] for name in HEADERS.split(", ")
                    if name in self.headers}
-        connection = http.client.HTTPConnection("127.0.0.1", 8001, timeout=20)
+        connection = http.client.HTTPConnection(LOCALHOST, BACKEND_PORT, timeout=20)
         try:
             connection.request(self.command, self.path, body=body, headers=headers)
             response = connection.getresponse()
@@ -89,8 +92,8 @@ class ApiProxyHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", 8002), ApiProxyHandler)
-    print("Local API proxy: http://127.0.0.1:8002 -> SSH tunnel on port 8001", flush=True)
+    server = ThreadingHTTPServer((LOCALHOST, PROXY_PORT), ApiProxyHandler)
+    print(f"Local API proxy: http://{LOCALHOST}:{PROXY_PORT} -> SSH tunnel on port {BACKEND_PORT}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
