@@ -10,15 +10,17 @@ enum SocketConnectionState { disconnected, connecting, connected }
 typedef SocketConnector = WebSocketChannel Function(Uri uri);
 
 /// Create one instance per session/house and share it between stream consumers.
-/// This class handles transport only, without assuming a subscription protocol.
+/// Authenticates with the first frame used by the supplied backend test client.
 class WebSocketService {
   WebSocketService({
     this.endpoint = ApiEndpoints.sensorWebSocket,
     SocketConnector? connector,
+    this.accessToken,
     this.connectionTimeout = const Duration(seconds: 15),
   }) : _connector = connector ?? WebSocketChannel.connect;
 
   final String? endpoint;
+  final String? Function()? accessToken;
   final SocketConnector _connector;
   final Duration connectionTimeout;
   final _messages = StreamController<Map<String, dynamic>>.broadcast();
@@ -65,6 +67,11 @@ class WebSocketService {
           'WebSocket URL must use ws:// or wss:// and have a host');
     }
 
+    final token = accessToken?.call();
+    if (accessToken != null && (token == null || token.isEmpty)) {
+      throw StateError('Cannot connect without a signed-in session');
+    }
+
     final generation = ++_generation;
     _setState(SocketConnectionState.connecting);
     try {
@@ -93,6 +100,10 @@ class WebSocketService {
           !identical(_channel, channel)) {
         throw StateError('WebSocket connection was cancelled or closed');
       }
+      if (token != null) {
+        channel.sink.add(jsonEncode({'type': 'auth', 'token': token}));
+      }
+      // Connectivity is transport state; the protocol has no verified auth ACK.
       _setState(SocketConnectionState.connected);
     } catch (_) {
       if (generation == _generation) await disconnect();

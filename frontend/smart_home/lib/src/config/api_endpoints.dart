@@ -6,7 +6,8 @@ class ApiEndpoints {
   // The local CORS proxy forwards port 8001 to the SSH tunnel on port 8000.
   static const String base = '127.0.0.1:8001';
   static const String baseUrl = 'http://${base}';
-  static const String wsBaseUrl = 'ws://$base';
+  // WebSockets bypass the HTTP-only proxy and use the SSH tunnel directly.
+  static const String wsBaseUrl = 'ws://127.0.0.1:8000';
   static const String apiRoot = '$baseUrl/api/v1';
   static const String houses = '$apiRoot/houses';
 

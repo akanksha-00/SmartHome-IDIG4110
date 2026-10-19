@@ -1,5 +1,5 @@
-/// Fill these URLs when the authentication API contract is available.
-/// The local demo repository does not call any of these endpoints.
+/// Reserved backend auth endpoints. Supabase authentication uses its SDK,
+/// so none of these placeholder URLs are called by AuthRepository.
 class AuthApiEndpoints {
   AuthApiEndpoints._();
 

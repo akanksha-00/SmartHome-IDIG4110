@@ -16,13 +16,25 @@ class ApiClient {
   ApiClient({
     http.Client? client,
     Map<String, String> headers = const {},
+    String? Function()? accessToken,
     this.timeout = const Duration(seconds: 20),
   })  : _client = client ?? http.Client(),
-        _headers = Map.of(headers);
+        _headers = Map.of(headers),
+        _accessToken = accessToken;
 
   final http.Client _client;
   final Map<String, String> _headers;
+  final String? Function()? _accessToken;
   final Duration timeout;
+
+  // Read at request time, so refreshed tokens replace older ones immediately.
+  Map<String, String> get _authHeaders {
+    final token = _accessToken?.call();
+    return {
+      ..._headers,
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
 
   Future<Object?> get(
     String url, {
@@ -37,7 +49,7 @@ class ApiClient {
           });
     final response = await _client.get(
       requestUri,
-      headers: {..._headers, 'Accept': 'application/json'},
+      headers: {..._authHeaders, 'Accept': 'application/json'},
     ).timeout(timeout);
     return _decode(response);
   }
@@ -75,7 +87,7 @@ class ApiClient {
   }
 
   Map<String, String> get _jsonHeaders => {
-        ..._headers,
+        ..._authHeaders,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
       };

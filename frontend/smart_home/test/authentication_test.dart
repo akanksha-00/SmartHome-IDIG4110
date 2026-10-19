@@ -32,14 +32,10 @@ Widget authHarness(AuthRepository repository) => BlocProvider(
     );
 
 class PendingAuthRepository extends AuthRepository {
-  PendingAuthRepository() : super(preferences: MemoryAuthPreferences());
   final response = Completer<AuthUser>();
   int calls = 0;
   @override
-  Future<AuthUser> signIn(
-      {required String email,
-      required String password,
-      bool rememberMe = false}) {
+  Future<AuthUser> signIn({required String email, required String password}) {
     calls++;
     return response.future;
   }
@@ -112,17 +108,14 @@ void main() {
   testWidgets(
       'sign-in is required on launch and again after restarting the app',
       (tester) async {
-    final preferences = MemoryAuthPreferences()
-      ..values[AuthRepository.rememberedUserKey] = dummyAuthUser.id;
-    await openAuth(tester, AuthRepository(preferences: preferences));
+    final repository = testAuthRepository();
+    await openAuth(tester, repository);
     expect(find.text('Welcome back'), findsOneWidget);
     await signInAsDummyUser(tester);
     await tester.pumpAndSettle();
     await tester.pumpWidget(const SizedBox.shrink());
-    await tester
-        .pumpWidget(authHarness(AuthRepository(preferences: preferences)));
+    await tester.pumpWidget(authHarness(repository));
     await tester.pumpAndSettle();
-    expect(preferences.values, isEmpty);
     expect(find.text('Welcome back'), findsOneWidget);
   });
 

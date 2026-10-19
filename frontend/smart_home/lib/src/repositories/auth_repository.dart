@@ -1,47 +1,82 @@
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:smart_home/src/dummyData/auth_data.dart';
 import 'package:smart_home/src/models/authentication/auth_user.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 class AuthException implements Exception {
   const AuthException(this.message);
   final String message;
 }
 
-/// Local demo implementation. Replace these methods with the authentication
-/// API later, keeping the screen and Cubit independent of the transport.
+/// Supabase credentials and sessions stay in the SDK, outside app/BLoC state.
 class AuthRepository {
-  AuthRepository({SharedPreferencesAsync? preferences})
-      : _preferences = preferences;
+  AuthRepository({supabase.SupabaseClient? client, this.configurationError})
+      : _client = client;
 
-  static const rememberedUserKey = 'smart_home.demo_auth.remembered_user';
-  SharedPreferencesAsync? _preferences;
-  SharedPreferencesAsync get _store =>
-      _preferences ??= SharedPreferencesAsync();
+  final supabase.SupabaseClient? _client;
+  final String? configurationError;
 
-  Future<AuthUser?> restoreSession() async {
-    final id = await _store.getString(rememberedUserKey);
-    if (id == dummyAuthUser.id) return dummyAuthUser;
-    if (id != null) await _store.remove(rememberedUserKey);
-    return null;
-  }
+  String? get accessToken => _client?.auth.currentSession?.accessToken;
+
+  Stream<AuthUser?> get sessionChanges =>
+      _client?.auth.onAuthStateChange.map((event) {
+        final user = event.session?.user;
+        return user == null ? null : _user(user);
+      }) ??
+      const Stream<AuthUser?>.empty();
 
   Future<AuthUser> signIn({
     required String email,
     required String password,
-    bool rememberMe = false,
   }) async {
-    if (email.trim().toLowerCase() != dummyAuthUser.email ||
-        password != dummyAuthPassword) {
-      throw const AuthException('The email or password is incorrect.');
+    final client = _client;
+    if (client == null) {
+      throw AuthException(
+          configurationError ?? 'Sign-in is not configured for this app.');
     }
-    // Only a demo user ID is persisted. Never store the password.
-    if (rememberMe) {
-      await _store.setString(rememberedUserKey, dummyAuthUser.id);
-    } else {
-      await _store.remove(rememberedUserKey);
+    try {
+      final response = await client.auth.signInWithPassword(
+        email: email.trim().toLowerCase(),
+        password: password,
+      );
+      final user = response.user;
+      if (response.session == null || user == null) {
+        throw const AuthException(
+            'Sign-in did not create a session. Try again.');
+      }
+      return _user(user);
+    } on supabase.AuthException catch (error) {
+      throw AuthException(switch (error.code) {
+        'invalid_credentials' => 'The email or password is incorrect.',
+        'email_not_confirmed' =>
+          'Confirm your email address before signing in.',
+        'over_request_rate_limit' ||
+        'over_email_send_rate_limit' =>
+          'Too many attempts. Please try again later.',
+        _ => error.message,
+      });
     }
-    return dummyAuthUser;
   }
 
-  Future<void> signOut() => _store.remove(rememberedUserKey);
+  Future<void> signOut() async {
+    final client = _client;
+    if (client == null) return;
+    try {
+      await client.auth.signOut(scope: supabase.SignOutScope.local);
+    } catch (_) {
+      // The SDK clears the local session before requesting server revocation.
+      // A network failure must not restore a user whose token is already gone.
+      if (client.auth.currentSession != null) rethrow;
+    }
+  }
+
+  AuthUser _user(supabase.User user) {
+    final email = user.email ?? '';
+    final metadataName =
+        user.userMetadata?['full_name'] ?? user.userMetadata?['name'];
+    final name = metadataName is String && metadataName.trim().isNotEmpty
+        ? metadataName.trim()
+        : email.isNotEmpty
+            ? email.split('@').first
+            : 'Home user';
+    return AuthUser(id: user.id, name: name, email: email);
+  }
 }
