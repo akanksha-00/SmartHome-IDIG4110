@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
 import 'package:smart_home/src/blocs/devices/device_bloc.dart';
+import 'package:smart_home/src/blocs/notifications/notification_bloc.dart';
 import 'package:smart_home/src/blocs/rooms/room_bloc.dart';
 import 'package:smart_home/src/config/api_endpoints.dart';
 import 'package:smart_home/src/config/app_config.dart';
+import 'package:smart_home/src/dummyData/notification_data.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
 import 'package:smart_home/src/repositories/house_realtime_repository.dart';
@@ -91,6 +93,11 @@ class _HouseSessionState extends State<HouseSession>
               lazy: false,
               create: (_) =>
                   RoomBloc(repository: _rooms)..add(const RoomsRequested()),
+            ),
+            BlocProvider<NotificationBloc>(
+              lazy: false,
+              create: (_) => NotificationBloc()
+                ..add(NotificationsLoaded(dummyNotifications())),
             ),
           ],
           child: DeviceStartupGate(

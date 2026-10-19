@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_home/src/blocs/devices/device_bloc.dart';
+import 'package:smart_home/src/blocs/notifications/notification_bloc.dart';
+import 'package:smart_home/src/dummyData/notification_data.dart';
 import 'package:smart_home/src/models/devices/device_message.dart';
 import 'package:smart_home/src/repositories/house_realtime_repository.dart';
 import 'package:smart_home/src/screen/dashboard/dashboard_notifications.dart';
@@ -17,7 +19,93 @@ import 'package:smart_home/src/services/web_socket_service.dart';
 import 'helpers/device_test_data.dart';
 import 'helpers/fake_web_socket.dart';
 
+NotificationBloc notificationBloc({bool withDemoData = false}) {
+  final bloc = NotificationBloc();
+  addTearDown(bloc.close);
+  if (withDemoData) bloc.add(NotificationsLoaded(dummyNotifications()));
+  return bloc;
+}
+
+Widget notificationHarness(DeviceBloc devices, NotificationBloc notifications,
+        {Widget? body}) =>
+    MultiBlocProvider(
+      providers: [
+        BlocProvider.value(value: devices),
+        BlocProvider.value(value: notifications),
+      ],
+      child: MaterialApp(
+        theme: AppTheme.dark(),
+        home: Scaffold(
+          appBar: AppBar(actions: const [
+            DashboardNotifications(roomNames: {'living-room': 'Living Room'})
+          ]),
+          body: body,
+        ),
+      ),
+    );
+
+Badge notificationBadge(WidgetTester tester) =>
+    tester.widget<Badge>(find.descendant(
+        of: find.byKey(const ValueKey('app-bar-notifications')),
+        matching: find.byType(Badge)));
+
 void main() {
+  testWidgets('demo notifications can be read individually and all at once',
+      (tester) async {
+    var requests = 0;
+    final devices = testDeviceBloc((_) async {
+      requests++;
+      return jsonResponse([]);
+    });
+    final notifications = notificationBloc(withDemoData: true);
+    await tester.pumpWidget(notificationHarness(devices, notifications));
+    await tester.pumpAndSettle();
+    expect(notificationBadge(tester).isLabelVisible, isTrue);
+    expect((notificationBadge(tester).label! as Text).data, '3');
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    expect(find.text('Demo notifications'), findsOneWidget);
+    expect(find.text('3 unread'), findsOneWidget);
+    expect(find.text('Device alerts'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('notification-demo-smoke')));
+    await tester.pumpAndSettle();
+    expect(find.text('2 unread'), findsOneWidget);
+    expect(notifications.state.notifications.first.isRead, isTrue);
+    await tester.tap(find.text('Mark all as read'));
+    await tester.pumpAndSettle();
+    expect(find.text('0 unread'), findsOneWidget);
+    expect(notificationBadge(tester).isLabelVisible, isFalse);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+    expect(find.text('0 unread'), findsOneWidget);
+    expect(notifications.state.notifications, hasLength(5));
+    expect(requests, 0); // Reading the feed never calls a service or API.
+    expect(tester.takeException(), isNull);
+  });
+
+  for (final size in [const Size(390, 600), const Size(1100, 540)]) {
+    testWidgets('notification dialog fits ${size.width} x ${size.height}',
+        (tester) async {
+      await tester.binding.setSurfaceSize(size);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final devices = testDeviceBloc((_) async => jsonResponse([]));
+      await tester.pumpWidget(
+          notificationHarness(devices, notificationBloc(withDemoData: true)));
+      await tester.tap(find.byTooltip('Notifications'));
+      await tester.pumpAndSettle();
+      final lastItem =
+          find.byKey(const ValueKey('notification-demo-device-added'));
+      await tester.scrollUntilVisible(lastItem, 150);
+      expect(lastItem, findsOneWidget);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets(
       'room environment uses live readings for its selected room and temperature units',
       (tester) async {
@@ -62,22 +150,14 @@ void main() {
             ]),
         realtime: realtime);
     await loadDevices(bloc);
-    await tester.pumpWidget(BlocProvider.value(
-        value: bloc,
-        child: MaterialApp(
-          theme: AppTheme.dark(),
-          home: Scaffold(
-              appBar: AppBar(actions: const [
-                DashboardNotifications(
-                    roomNames: {'living-room': 'Living Room'})
-              ]),
-              body: BlocBuilder<DeviceBloc, DeviceState>(
-                  builder: (context, state) => ApiDeviceCard(
-                        device: state.devices.single,
-                        subtitle: 'Living Room',
-                        onStateChanged: (_) {},
-                      ))),
-        )));
+    await tester.pumpWidget(
+        notificationHarness(bloc, notificationBloc(withDemoData: true),
+            body: BlocBuilder<DeviceBloc, DeviceState>(
+                builder: (context, state) => ApiDeviceCard(
+                      device: state.devices.single,
+                      subtitle: 'Living Room',
+                      onStateChanged: (_) {},
+                    ))));
     await tester.pumpAndSettle();
     expect(find.text('Live'), findsOneWidget);
     expect(find.textContaining('No smoke detected'), findsOneWidget);
@@ -93,11 +173,16 @@ void main() {
     expect(find.textContaining('Smoke detected'), findsOneWidget);
     expect(find.text('smoke detected in bedroom!'), findsOneWidget);
     expect(bloc.state.unreadAlertCount, 1);
+    expect((notificationBadge(tester).label! as Text).data, '4');
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(bloc.state.unreadAlertCount, 0);
+    expect((notificationBadge(tester).label! as Text).data, '3');
     expect(find.textContaining('Living Room · Active'), findsOneWidget);
+    await tester.tap(find.text('Mark all as read'));
+    await tester.pumpAndSettle();
+    expect(notificationBadge(tester).isLabelVisible, isFalse);
     channel.incoming.add(jsonEncode({
       'type': 'device_event',
       'device_id': 'device-013',
@@ -121,18 +206,13 @@ void main() {
           sensorJson('device-014', 'temperature_sensor', 'temperature', 35),
         ]));
     await loadDevices(bloc);
-    await tester.pumpWidget(BlocProvider.value(
-        value: bloc,
-        child: MaterialApp(
-            home: Scaffold(
-          appBar: AppBar(actions: const [DashboardNotifications()]),
-          body: BlocBuilder<DeviceBloc, DeviceState>(
-              builder: (context, state) => ApiDeviceCard(
-                    device: state.devices.single,
-                    subtitle: 'Living Room',
-                    onStateChanged: (_) {},
-                  )),
-        ))));
+    await tester.pumpWidget(notificationHarness(bloc, notificationBloc(),
+        body: BlocBuilder<DeviceBloc, DeviceState>(
+            builder: (context, state) => ApiDeviceCard(
+                  device: state.devices.single,
+                  subtitle: 'Living Room',
+                  onStateChanged: (_) {},
+                ))));
     await tester.pumpAndSettle();
     bloc.add(DeviceRealtimeReceived(
         DeviceMessage(deviceId: 'device-014', updates: {'temperature': 37.5})));
@@ -141,6 +221,6 @@ void main() {
     expect(bloc.state.alerts, isEmpty);
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
-    expect(find.text('No alerts received this session'), findsOneWidget);
+    expect(find.text('No notifications to show'), findsOneWidget);
   });
 }
