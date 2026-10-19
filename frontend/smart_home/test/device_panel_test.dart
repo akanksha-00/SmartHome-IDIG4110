@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/src/blocs/devices/device_bloc.dart';
+import 'package:smart_home/src/models/devices/device_message.dart';
 import 'package:smart_home/src/screen/home/widgets/addDeviceDialog.dart';
 import 'package:smart_home/src/screen/home/widgets/api_device_card.dart';
 import 'package:smart_home/src/screen/home/widgets/device_panel.dart';
@@ -80,17 +81,17 @@ void main() {
   });
 
   testWidgets(
-      'failed PATCH rolls back the immediate toggle without moving cards',
+      'failed command rolls back the immediate toggle without moving cards',
       (tester) async {
     final response = Completer<http.Response>();
     var writes = 0;
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') return jsonResponse(houseDevices());
       writes++;
-      expectSync(request.method, 'PATCH');
-      expectSync(jsonDecode(request.body), [
-        {'name': 'power', 'value': true}
-      ]);
+      expectSync(request.method, 'POST');
+      expectSync(jsonDecode(request.body), {
+        'state': {'power': true, 'brightness': 40}
+      });
       return response.future;
     });
     await openPanel(tester, bloc);
@@ -99,6 +100,7 @@ void main() {
     await tester.tap(cardSwitch('device-001'));
     await tester.pump();
     expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    expect(bloc.state.devices.first.state['brightness'], 40);
     expect(find.text('2 devices · 2 on'), findsOneWidget);
     expect(
         tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
@@ -115,6 +117,7 @@ void main() {
     response.complete(http.Response('Unavailable', 503));
     await tester.pumpAndSettle();
     expect(tester.widget<Switch>(cardSwitch('device-001')).value, isFalse);
+    expect(bloc.state.devices.first.state['brightness'], 40);
     expect(find.text('2 devices · 1 on'), findsOneWidget);
     expect(
         tester.widget<Switch>(cardSwitch('device-001')).onChanged, isNotNull);
@@ -141,7 +144,14 @@ void main() {
             deviceJson(id: 'device-002', name: 'Next device'),
           ]);
         }
-        expectSync(request.method, 'PATCH');
+        expectSync(request.method, 'POST');
+        expectSync(jsonDecode(request.body), {
+          'state': {
+            'power': true,
+            if (type == 'light') 'brightness': 40,
+            if (type == 'fan') 'speed': 3,
+          }
+        });
         writes++;
         return response.future;
       });
@@ -164,7 +174,7 @@ void main() {
       await tester.tap(cardSwitch('device-001'), warnIfMissed: false);
       await tester.pump();
       expect(writes, 1);
-      response.complete(jsonResponse(deviceJson(type: type, power: true)));
+      response.complete(jsonResponse(commandAck(state: {'power': true})));
       await tester.pumpAndSettle();
       expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
       expect(find.byType(LinearProgressIndicator), findsNothing);
@@ -179,7 +189,7 @@ void main() {
   }
 
   testWidgets(
-      'device visuals update immediately and matching saves do not redraw them',
+      'device visuals update immediately and acknowledgements do not redraw them',
       (tester) async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async => request.method == 'GET'
@@ -207,7 +217,7 @@ void main() {
     expect(bloc.state.pendingDeviceIds, contains('device-001'));
     expect(builds, 2);
     expect(find.text('true'), findsOneWidget);
-    response.complete(jsonResponse(deviceJson(power: true)));
+    response.complete(jsonResponse(commandAck(state: {'power': true})));
     await tester.pumpAndSettle();
     expect(builds, 2);
     expect(find.text('true'), findsOneWidget);
@@ -217,16 +227,11 @@ void main() {
       (tester) async {
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') return jsonResponse(houseDevices());
-      expectSync(request.method, 'PATCH');
-      expectSync(jsonDecode(request.body), [
-        {'name': 'speed', 'value': 5}
-      ]);
-      return jsonResponse(deviceJson(
-          id: 'device-002',
-          name: 'Ceiling Fan',
-          type: 'fan',
-          power: true,
-          speed: 5));
+      expectSync(request.method, 'POST');
+      expectSync(jsonDecode(request.body), {
+        'state': {'power': true, 'speed': 5}
+      });
+      return jsonResponse(commandAck(id: 'device-002', state: {'speed': 5}));
     });
     await openPanel(tester, bloc);
     expect(find.text('5'), findsOneWidget);
@@ -241,19 +246,22 @@ void main() {
   });
 
   testWidgets(
-      'brightness previews locally and sends one scaled PATCH when the drag ends',
+      'brightness sends one numeric command with power and stays on after telemetry',
       (tester) async {
     var writes = 0;
+    Map<String, Object?>? commandedState;
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((request) async {
       if (request.method == 'GET') {
         return jsonResponse([deviceJson(power: true)]);
       }
       writes++;
-      expectSync(request.method, 'PATCH');
-      expectSync(jsonDecode(request.body), [
-        {'name': 'brightness', 'value': 60}
-      ]);
+      expectSync(request.method, 'POST');
+      expectSync(jsonDecode(request.body), {
+        'state': {'power': true, 'brightness': 60}
+      });
+      commandedState =
+          (jsonDecode(request.body)['state'] as Map).cast<String, Object?>();
       return response.future;
     });
     await openPanel(tester, bloc);
@@ -270,14 +278,109 @@ void main() {
     expect(writes, 1);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(bloc.state.devices.single.state['brightness'], 60);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
-    response.complete(jsonResponse(deviceJson(power: true, brightness: 60)));
+    // A receiver that defaults missing power to off must still keep this light
+    // on when it reports the command's actual state through WebSocket.
+    bloc.add(DeviceRealtimeReceived(DeviceMessage(
+      deviceId: 'device-001',
+      updates: {
+        'power': commandedState!['power'] ?? false,
+        'brightness': commandedState!['brightness'],
+      },
+    )));
+    await tester.pump();
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    response.complete(jsonResponse(commandAck(state: commandedState!)));
     await tester.pumpAndSettle();
     expect(bloc.state.updateError, isNull);
     expect(bloc.state.pendingDeviceIds, isEmpty);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(bloc.state.devices.single.state['brightness'], 60);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
     expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
+  });
+
+  testWidgets(
+      'failed brightness command restores brightness and keeps power on',
+      (tester) async {
+    final response = Completer<http.Response>();
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') {
+        return jsonResponse([deviceJson(power: true)]);
+      }
+      expectSync(jsonDecode(request.body), {
+        'state': {'power': true, 'brightness': 60}
+      });
+      return response.future;
+    });
+    await openPanel(tester, bloc);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(0.6);
+    await tester.pump();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    response.complete(http.Response('Unavailable', 503));
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0.4);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    expect(bloc.state.updateError, isNotNull);
+  });
+
+  testWidgets('switching a light off and on preserves its saved brightness',
+      (tester) async {
+    final commands = <Map<String, dynamic>>[];
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') {
+        return jsonResponse([deviceJson(power: true, brightness: 60)]);
+      }
+      expectSync(request.method, 'POST');
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      commands.add(body);
+      return jsonResponse(commandAck(state: body['state']));
+    });
+    await openPanel(tester, bloc);
+    await tester.tap(cardSwitch('device-001'));
+    await tester.pumpAndSettle();
+    expect(commands, [
+      {
+        'state': {'power': false, 'brightness': 60}
+      },
+    ]);
+    expect(bloc.state.devices.single.state, {'power': false, 'brightness': 60});
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
+    bloc.add(DeviceRealtimeReceived(DeviceMessage(
+      deviceId: 'device-001',
+      updates: {'power': false},
+    )));
+    await tester.pumpAndSettle();
+    expect(bloc.state.devices.single.state['brightness'], 60);
+    await tester.tap(cardSwitch('device-001'));
+    await tester.pumpAndSettle();
+    expect(commands.last, {
+      'state': {'power': true, 'brightness': 60}
+    });
+    expect(commands, hasLength(2));
+    expect(bloc.state.devices.single.state, {'power': true, 'brightness': 60});
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0.6);
+  });
+
+  testWidgets('zero brightness does not implicitly switch off the light',
+      (tester) async {
+    final bloc = testDeviceBloc((request) async {
+      if (request.method == 'GET') {
+        return jsonResponse([deviceJson(power: true)]);
+      }
+      expectSync(jsonDecode(request.body), {
+        'state': {'power': true, 'brightness': 0}
+      });
+      return jsonResponse(commandAck(state: {'power': true, 'brightness': 0}));
+    });
+    await openPanel(tester, bloc);
+    tester.widget<Slider>(find.byType(Slider)).onChangeEnd!(0);
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(find.byType(Slider)).value, 0);
+    expect(tester.widget<Switch>(cardSwitch('device-001')).value, isTrue);
   });
 
   testWidgets(

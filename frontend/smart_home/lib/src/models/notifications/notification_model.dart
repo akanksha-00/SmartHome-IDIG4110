@@ -20,4 +20,15 @@ class NotificationModel {
   final bool isRead;
   final String? deviceId;
   final String? roomId;
+
+  NotificationModel copyWith({bool? isRead}) => NotificationModel(
+        id: id,
+        title: title,
+        message: message,
+        severity: severity,
+        createdAt: createdAt,
+        isRead: isRead ?? this.isRead,
+        deviceId: deviceId,
+        roomId: roomId,
+      );
 }

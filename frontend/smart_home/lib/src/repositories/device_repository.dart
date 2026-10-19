@@ -2,6 +2,7 @@ import 'package:smart_home/src/config/api_endpoints.dart';
 import 'package:smart_home/src/models/devices/api_device.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/api_json.dart';
+import 'package:three_js/three_js.dart';
 
 /// HTTP device operations for one house. DeviceBloc owns the loaded data/state.
 class DeviceRepository {
@@ -112,6 +113,7 @@ class DeviceRepository {
     if (updates.isEmpty || updates.keys.any((key) => key.trim().isEmpty)) {
       throw ArgumentError('Supply at least one named capability update');
     }
+    print({'state': updates});
     final ack = jsonObject(await apiClient.post(
       ApiEndpoints.deviceCommand(houseId, id),
       {'state': updates},
