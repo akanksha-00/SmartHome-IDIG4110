@@ -192,6 +192,17 @@ void main() {
       await tester.pumpAndSettle();
       expect(calls, 2);
       expect(find.text('Welcome, Alex'), findsOneWidget);
+      if (logoutLocation == 'sidebar') {
+        await tester.tap(find.byTooltip('Notifications'));
+        await tester.pumpAndSettle();
+        expect(find.text('3 unread'), findsOneWidget);
+        await tester.tap(find.text('Mark all as read'));
+        await tester.pumpAndSettle();
+        expect(find.text('0 unread'), findsOneWidget);
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+        expect(calls, 2);
+      }
       if (logoutLocation == 'Settings') {
         await tester.tap(find.text('Settings'));
         await tester.pumpAndSettle();
@@ -207,6 +218,13 @@ void main() {
       await signInAsDummyUser(tester);
       await tester.pumpAndSettle();
       expect(calls, 4);
+      if (logoutLocation == 'sidebar') {
+        await tester.tap(find.byTooltip('Notifications'));
+        await tester.pumpAndSettle();
+        expect(find.text('3 unread'), findsOneWidget);
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+      }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     });
