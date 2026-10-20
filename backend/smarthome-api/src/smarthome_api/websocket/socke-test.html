@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Home WebSocket Test</title>
+</head>
+<body>
+
+<h1>Smart Home WebSocket Test</h1>
+
+<p id="status">Connecting...</p>
+
+<h2>Received messages:</h2>
+<pre id="messages"></pre>
+<script>
+    const status = document.getElementById("status");
+    const messages = document.getElementById("messages");
+
+    const ws = new WebSocket(
+        "ws://localhost:8000/api/v1/houses/house-001/ws"
+    );
+
+    ws.onopen = () => {
+        status.textContent = "WebSocket connected";
+    };
+
+    ws.onmessage = (event) => {
+        const time = new Date().toLocaleTimeString();
+
+        messages.textContent +=
+            `[${time}] ${event.data}\n`;
+    };
+
+    ws.onerror = () => {
+        status.textContent = "WebSocket error";
+    };
+
+    ws.onclose = () => {
+        status.textContent = "WebSocket disconnected";
+    };
+</script>
+
+</body>
+</html>
