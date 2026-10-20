@@ -1,3 +1,4 @@
+name: smarthome
 services:
   mosquitto:
     image: eclipse-mosquitto:2

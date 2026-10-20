@@ -46,7 +46,8 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:8080",
         "http://localhost:8080",
-        "http://idig4110-h26-group2.iaas.iik.ntnu.no"
+        "http://idig4110-h26-group2.iaas.iik.ntnu.no",
+        "http://10.212.170.109:8000"
     ],
     allow_credentials=False,
     allow_methods=["*"],
