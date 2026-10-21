@@ -1,0 +1,10 @@
+{"timestamp": "2026-10-20T19:14:36.260686+00:00", "level": "INFO", "logger": "smarthome", "message": "Starting Smart Home API", "event": "application_starting"}
+{"timestamp": "2026-10-20T19:14:36.282077+00:00", "level": "INFO", "logger": "smarthome.mqtt", "message": "Connected to MQTT broker", "event": "mqtt_connected"}
+{"timestamp": "2026-10-20T19:14:36.282667+00:00", "level": "INFO", "logger": "smarthome.mqtt", "message": "Subscribed to MQTT topics", "event": "mqtt_subscribed", "details": {"topics": ["smarthome/+/+/event", "smarthome/+/+/state"]}}
+{"timestamp": "2026-10-20T19:14:36.282921+00:00", "level": "INFO", "logger": "smarthome", "message": "Smart Home API started", "event": "application_started"}
+{"timestamp": "2026-10-20T19:14:48.027159+00:00", "level": "INFO", "logger": "smarthome", "message": "Starting Smart Home API", "event": "application_starting"}
+{"timestamp": "2026-10-20T19:14:48.047363+00:00", "level": "INFO", "logger": "smarthome.mqtt", "message": "Connected to MQTT broker", "event": "mqtt_connected"}
+{"timestamp": "2026-10-20T19:14:48.047945+00:00", "level": "INFO", "logger": "smarthome.mqtt", "message": "Subscribed to MQTT topics", "event": "mqtt_subscribed", "details": {"topics": ["smarthome/+/+/event", "smarthome/+/+/state"]}}
+{"timestamp": "2026-10-20T19:14:48.048241+00:00", "level": "INFO", "logger": "smarthome", "message": "Smart Home API started", "event": "application_started"}
+{"timestamp": "2026-10-20T19:17:23.396900+00:00", "level": "INFO", "logger": "smarthome.mqtt", "message": "Attempting MQTT publish", "event": "mqtt_publish_attempted", "details": {"topic": "smarthome/house-001/device-001/command", "house_id": "house-001", "device_id": "device-001"}}
+{"timestamp": "2026-10-20T19:17:23.398026+00:00", "level": "INFO", "logger": "smarthome.mqtt", "message": "MQTT publish call returned", "event": "mqtt_publish_requested", "details": {"topic": "smarthome/house-001/device-001/command", "house_id": "house-001", "device_id": "device-001"}}

@@ -1,3 +1,4 @@
+name: smarthome
 services:
   mosquitto:
     image: eclipse-mosquitto:2
@@ -26,15 +27,15 @@ services:
       - "8000:8000"
     environment:
       SUPABASE_URL: ${SUPABASE_URL}
-      LOG_TO_FILE: "false" # Change to "true" to enable file logging
+      LOG_TO_FILE: "true" # Change to "true" to enable file logging
       STORAGE_BACKEND: json
       # STORAGE_BACKEND: mongo
       # MONGODB_URI: mongodb://mongodb:27017
       # MONGODB_DB: smarthome
       MQTT_HOST: mosquitto
       MQTT_PORT: 1883
-    #volumes:
-    #- ./logs:/app/logs
+    volumes:
+    - ./logs:/app/logs
     depends_on:
       - mosquitto
 

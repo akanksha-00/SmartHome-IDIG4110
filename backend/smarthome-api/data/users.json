@@ -7,11 +7,12 @@
     "id": "c3110fc5-59a4-4555-a970-10b9b30e8769",
     "role": "customer"
   },
-   {
+  {
     "id": "ed1123f8-3af2-44a2-bb85-ab088fb78a3c",
     "role": "platform_admin"
+  },
+  {
+    "id": "549f34be-41cf-4d16-843a-56bd13307390",
+    "role": "platform_admin"
   }
-
-
 ]
-
