@@ -8,9 +8,9 @@ services:
       - "1883:1883"
 
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      - ./backend/mosquitto/config:/mosquitto/config
+      - ./backend/mosquitto/data:/mosquitto/data
+      - ./backend/mosquitto/log:/mosquitto/log
   mongodb:
     image: mongo:8
     container_name: smarthome-mongodb
@@ -18,10 +18,10 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongodb_data:/data/db
+      - ./backend/mongodb_data:/data/db
   fastapi:
     build:
-      context: ./SmartHome-IDIG4110/backend/smarthome-api
+      context: ./backend/smarthome-api
     container_name: smarthome-fastapi
     restart: unless-stopped
 
@@ -37,7 +37,7 @@ services:
       MQTT_PORT: 1883
       
     volumes:
-      - ./logs:/app/logs
+      - ./backend/logs:/app/logs
     depends_on:
       - mosquitto
 volumes:
