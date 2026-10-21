@@ -4,7 +4,7 @@ RUN npm install -g serve
 
 WORKDIR /app
 
-COPY web .
+COPY deploy/web/ .
 
 EXPOSE 8080
 
