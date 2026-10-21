@@ -4,6 +4,7 @@ import 'package:bloc/bloc.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:smart_home/src/blocs/rooms/room_event.dart';
 import 'package:smart_home/src/blocs/rooms/room_state.dart';
+import 'package:smart_home/src/logging/app_log.dart';
 import 'package:smart_home/src/models/rooms/api_room.dart';
 import 'package:smart_home/src/repositories/room_repository.dart';
 
@@ -67,8 +68,11 @@ class RoomBloc extends Bloc<RoomEvent, RoomState> {
         status: RoomLoadStatus.loaded,
         hasLoaded: true,
       ));
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (emit.isDone || _closing) return;
+      AppLog.error(
+          'RoomBloc', 'Could not load rooms | house=${repository.houseId}',
+          error: error, stackTrace: stackTrace);
       emit(state.copyWith(status: RoomLoadStatus.failed, loadError: error));
     }
   }

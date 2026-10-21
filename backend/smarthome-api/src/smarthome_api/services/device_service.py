@@ -230,6 +230,7 @@ def update_device_state(
         device_id,
         state,
     )
+
 async def handle_device_state(
     house_id: str,
     device_id: str,

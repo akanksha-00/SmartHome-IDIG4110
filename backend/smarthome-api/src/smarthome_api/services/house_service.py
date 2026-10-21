@@ -5,19 +5,22 @@ from smarthome_api.repositories.factory import house_repository
 # HOUSES
 # ==================================================
 
-def get_all_houses():
-
-    return house_repository.get_all()
+def get_all_houses(
+    owner_id: str | None = None
+):
+    return house_repository.get_all(
+        owner_id=owner_id
+    )
 
 
 def get_house(
     house_id: str,
+    owner_id: str | None = None,
 ):
-
     return house_repository.get_by_id(
         house_id,
+        owner_id=owner_id
     )
-
 
 def create_house(
     house: dict,

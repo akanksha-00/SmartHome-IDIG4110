@@ -1,0 +1,45 @@
+name: smarthome
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: smarthome-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+
+  mongodb:
+    image: mongo:8
+    container_name: smarthome-mongodb
+    restart: unless-stopped
+    volumes:
+      - mongodb_data:/data/db
+
+  fastapi:
+    build:
+      context: ./smarthome-api
+    container_name: smarthome-fastapi
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL}
+      LOG_TO_FILE: "true" # Change to "true" to enable file logging
+      STORAGE_BACKEND: json
+      # STORAGE_BACKEND: mongo
+      # MONGODB_URI: mongodb://mongodb:27017
+      # MONGODB_DB: smarthome
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    volumes:
+    - ./logs:/app/logs
+    depends_on:
+      - mosquitto
+
+volumes:
+  mongodb_data:
+  mosquitto_data:
+  mosquitto_logs:

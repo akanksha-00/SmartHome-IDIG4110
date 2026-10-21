@@ -10,6 +10,7 @@ import 'package:smart_home/src/services/web_socket_service.dart';
 
 import 'helpers/device_test_data.dart';
 import 'helpers/fake_web_socket.dart';
+import 'helpers/notification_test_data.dart';
 
 DeviceMessage smoke(bool value, {bool? alert}) => DeviceMessage.fromJson({
       'type': 'device_event',
@@ -133,8 +134,7 @@ void main() {
     expect(repository.connectionState, SocketConnectionState.connected);
   });
 
-  test('alerts and cached readings remain immediate during a slow refresh',
-      () async {
+  test('cached readings remain immediate during a slow refresh', () async {
     final response = Completer<http.Response>();
     var gets = 0;
     final bloc = testDeviceBloc((_) async {
@@ -149,7 +149,8 @@ void main() {
         waitForDeviceState(bloc, (s) => s.status == DeviceLoadStatus.loading);
     bloc.add(const DevicesRequested(force: true));
     await loading;
-    final alerted = waitForDeviceState(bloc, (s) => s.alertRevision == 1);
+    final alerted = waitForDeviceState(
+        bloc, (s) => s.devices.single.state['smoke'] == true);
     bloc.add(DeviceRealtimeReceived(smoke(true)));
     await alerted;
     expect(bloc.state.devices.single.state['smoke'], true);
@@ -159,10 +160,10 @@ void main() {
         [sensorJson('device-013', 'smoke_detector', 'smoke', false)]));
     await loaded;
     expect(bloc.state.devices.single.state['smoke'], true);
-    expect(bloc.state.alerts, hasLength(1));
   });
 
-  test('live reports do not finish PATCH before its HTTP response', () async {
+  test('live reports do not finish commands before the HTTP acknowledgement',
+      () async {
     final response = Completer<http.Response>();
     final bloc = testDeviceBloc((r) async =>
         r.method == 'GET' ? jsonResponse([deviceJson()]) : response.future);
@@ -180,15 +181,15 @@ void main() {
     expect(bloc.state.pendingDeviceIds, contains('device-001'));
     final confirmed =
         waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    response.complete(jsonResponse(deviceJson()));
+    response.complete(jsonResponse(commandAck()));
     await confirmed;
     expect(bloc.state.devices.single.state['power'], true);
   });
 
-  test('a saved PATCH response survives a concurrent older GET snapshot',
+  test('an acknowledged command survives a concurrent older GET snapshot',
       () async {
     var gets = 0;
-    final patchResponse = Completer<http.Response>();
+    final commandResponse = Completer<http.Response>();
     final refreshResponse = Completer<http.Response>();
     final bloc = testDeviceBloc((r) async {
       if (r.method == 'GET') {
@@ -197,7 +198,7 @@ void main() {
             ? jsonResponse([deviceJson()])
             : refreshResponse.future;
       }
-      return patchResponse.future;
+      return commandResponse.future;
     });
     await loadDevices(bloc);
     final pending =
@@ -210,7 +211,7 @@ void main() {
     bloc.add(const DevicesRequested(force: true));
     await refreshing;
     final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    patchResponse.complete(jsonResponse(deviceJson(power: true)));
+    commandResponse.complete(jsonResponse(commandAck(state: {'power': true})));
     await saved;
     final loaded =
         waitForDeviceState(bloc, (s) => s.status == DeviceLoadStatus.loaded);
@@ -220,9 +221,9 @@ void main() {
     expect(bloc.state.updateError, isNull);
   });
 
-  test('refresh keeps optimistic values while PATCH is still in flight',
+  test('refresh keeps optimistic values while a command is still in flight',
       () async {
-    final patchResponse = Completer<http.Response>();
+    final commandResponse = Completer<http.Response>();
     final refreshResponse = Completer<http.Response>();
     var gets = 0;
     final bloc = testDeviceBloc((r) async {
@@ -231,7 +232,7 @@ void main() {
             ? jsonResponse([deviceJson()])
             : refreshResponse.future;
       }
-      return patchResponse.future;
+      return commandResponse.future;
     });
     await loadDevices(bloc);
     final pending =
@@ -250,13 +251,13 @@ void main() {
     expect(bloc.state.devices.single.state['power'], true);
     expect(bloc.state.pendingDeviceIds, {'device-001'});
     final saved = waitForDeviceState(bloc, (s) => s.pendingDeviceIds.isEmpty);
-    patchResponse.complete(jsonResponse(deviceJson(power: true)));
+    commandResponse.complete(jsonResponse(commandAck(state: {'power': true})));
     await saved;
     expect(bloc.state.devices.single.state['power'], true);
   });
 
   test('a rollback survives a concurrent stale refresh', () async {
-    final patchResponse = Completer<http.Response>();
+    final commandResponse = Completer<http.Response>();
     final refreshResponse = Completer<http.Response>();
     var gets = 0;
     final bloc = testDeviceBloc((r) async {
@@ -265,7 +266,7 @@ void main() {
             ? jsonResponse([deviceJson()])
             : refreshResponse.future;
       }
-      return patchResponse.future;
+      return commandResponse.future;
     });
     await loadDevices(bloc);
     final pending =
@@ -278,7 +279,7 @@ void main() {
     bloc.add(const DevicesRequested(force: true));
     await refreshing;
     final failed = waitForDeviceState(bloc, (s) => s.updateError != null);
-    patchResponse.complete(http.Response('Unavailable', 503));
+    commandResponse.complete(http.Response('Unavailable', 503));
     await failed;
     expect(bloc.state.devices.single.state['brightness'], 40);
     final loaded =
@@ -305,9 +306,7 @@ void main() {
     expect(bloc.state.devices.single.state, {'power': true, 'brightness': 80});
   });
 
-  test(
-      'partial reports merge and only backend alert:true creates a notification',
-      () async {
+  test('partial reports and events merge into device values', () async {
     final bloc = testDeviceBloc((_) async => jsonResponse([
           sensorJson('device-013', 'smoke_detector', 'smoke', false),
           sensorJson('device-014', 'temperature_sensor', 'temperature', 35),
@@ -318,26 +317,21 @@ void main() {
     bloc.add(DeviceRealtimeReceived(
         DeviceMessage(deviceId: 'device-014', updates: {'temperature': 36})));
     await reading;
-    expect(bloc.state.alerts, isEmpty); // No frontend threshold inference.
-    final alarm = waitForDeviceState(bloc, (s) => s.unreadAlertCount == 1);
+    final alarm =
+        waitForDeviceState(bloc, (s) => s.devices.first.state['smoke'] == true);
     bloc.add(DeviceRealtimeReceived(smoke(true)));
     await alarm;
     expect(bloc.state.devices.first.state['smoke'], true);
-    expect(bloc.state.alerts.single.message, 'smoke detected in bedroom!');
-    bloc.add(DeviceRealtimeReceived(smoke(true))); // Duplicate active alert.
-    final read = waitForDeviceState(bloc, (s) => s.unreadAlertCount == 0);
-    bloc.add(const DeviceAlertsRead());
-    await read;
-    expect(bloc.state.alerts, hasLength(1));
-    final cleared = waitForDeviceState(bloc, (s) => !s.alerts.single.isActive);
+    final cleared = waitForDeviceState(
+        bloc, (s) => s.devices.first.state['smoke'] == false);
     bloc.add(DeviceRealtimeReceived(smoke(false)));
     await cleared;
     expect(bloc.state.devices.first.state['smoke'], false);
-    final second = waitForDeviceState(bloc, (s) => s.alertRevision == 2);
+    final second =
+        waitForDeviceState(bloc, (s) => s.devices.first.state['smoke'] == true);
     bloc.add(DeviceRealtimeReceived(smoke(true)));
     await second;
-    expect(bloc.state.alerts, hasLength(2));
-    expect(bloc.state.unreadAlertCount, 1);
+    expect(bloc.state.devices.last.state['temperature'], 36);
   });
 
   test('unknown devices use one GET while known reports continue immediately',
@@ -358,15 +352,12 @@ void main() {
         DeviceMessage(deviceId: 'device-001', updates: {'brightness': 90})));
     await changed;
     expect(individualGets, 1);
-    expect(bloc.state.alerts, hasLength(1));
     final discovered = waitForDeviceState(bloc,
         (s) => s.devices.length == 2 && s.devices.last.state['smoke'] == false);
     response.complete(jsonResponse(
         sensorJson('device-013', 'smoke_detector', 'smoke', false)));
     await discovered;
     await Future<void>.delayed(Duration.zero);
-    expect(bloc.state.alertRevision, 1);
-    expect(bloc.state.alerts.single.isActive, false);
   });
 
   test(
@@ -388,13 +379,15 @@ void main() {
       return jsonResponse(
           [sensorJson('device-013', 'smoke_detector', 'smoke', gets >= 3)]);
     }, realtime: realtime);
+    final notifications = testNotificationBloc(realtime: realtime);
     await loadDevices(bloc);
     final firstConnected = waitForDeviceState(
         bloc, (s) => s.connection == SocketConnectionState.connected);
     channels.first.handshake.complete();
     await firstConnected;
     await Future<void>.delayed(Duration.zero);
-    final alert = waitForDeviceState(bloc, (s) => s.alerts.isNotEmpty);
+    final alert = waitForNotificationState(
+        notifications, (s) => s.notifications.isNotEmpty);
     channels.first.incoming.add(jsonEncode({
       'type': 'device_event',
       'device_id': 'device-013',
@@ -420,20 +413,21 @@ void main() {
     await resynced;
     expect(gets, 3);
     expect(bloc.state.devices.single.state['smoke'], true);
-    expect(bloc.state.alerts.single.message, 'Smoke!');
+    expect(notifications.state.notifications.single.message, 'Smoke!');
   });
 
-  test('PATCH controls work while WebSocket is disconnected', () async {
+  test('commands are acknowledged without waiting for a WebSocket connection',
+      () async {
     final channel = FakeChannel(readyNow: false);
     final realtime = HouseRealtimeRepository(
         socket: WebSocketService(
             endpoint: 'ws://localhost/ws', connector: (_) => channel));
-    var patches = 0;
+    var commands = 0;
     final bloc = testDeviceBloc((r) async {
       if (r.method == 'GET') return jsonResponse([deviceJson()]);
-      expect(r.method, 'PATCH');
-      patches++;
-      return jsonResponse(deviceJson(power: true));
+      expect(r.method, 'POST');
+      commands++;
+      return jsonResponse(commandAck(state: {'power': true}));
     }, realtime: realtime);
     await loadDevices(bloc);
     expect(bloc.state.connection, isNot(SocketConnectionState.connected));
@@ -445,7 +439,7 @@ void main() {
     bloc.add(
         DeviceStateUpdateRequested(id: 'device-001', updates: {'power': true}));
     await saved;
-    expect(patches, 1);
+    expect(commands, 1);
     expect(bloc.state.pendingDeviceIds, isEmpty);
     expect(bloc.state.updateError, isNull);
     channel.handshake.complete();

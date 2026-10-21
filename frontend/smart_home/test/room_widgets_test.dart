@@ -14,6 +14,7 @@ import 'package:smart_home/src/screen/home/widgets/room_selector.dart';
 import 'package:smart_home/src/widgets/room_startup_gate.dart';
 
 import 'helpers/device_test_data.dart';
+import 'helpers/auth_test_data.dart';
 import 'helpers/room_test_data.dart';
 
 Widget selectorHarness(RoomBloc rooms, DeviceBloc devices) => MultiBlocProvider(
@@ -149,7 +150,10 @@ void main() {
       deviceCalls++;
       return deviceResponse.future;
     });
-    await tester.pumpWidget(MyApp(deviceRepository: source.repository));
+    final auth = testAuthRepository();
+    await tester.pumpWidget(
+        MyApp(authRepository: auth, deviceRepository: source.repository));
+    await signInAsDummyUser(tester);
     await tester.pump();
     expect(roomCalls, 1);
     expect(deviceCalls, 1);
@@ -162,7 +166,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('No rooms configured for this house'), findsOneWidget);
     expect(find.text('Loading rooms…'), findsNothing);
-    await tester.pumpWidget(MyApp(deviceRepository: source.repository));
+    await tester.pumpWidget(
+        MyApp(authRepository: auth, deviceRepository: source.repository));
     await tester.pumpAndSettle();
     expect(roomCalls, 1);
     expect(deviceCalls, 1);

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
 import 'package:smart_home/src/blocs/rooms/room_bloc.dart';
 import 'package:smart_home/src/screen/dashboard/dashboard_notifications.dart';
 import 'package:smart_home/src/controllers/app_settings_controller.dart';
@@ -7,7 +8,6 @@ import 'package:smart_home/src/screen/automations/automations_page.dart';
 import 'package:smart_home/src/screen/safety/safety_page.dart';
 import 'package:smart_home/src/screen/home/homePage.dart';
 import 'package:smart_home/src/screen/settings/settingsPage.dart';
-import 'package:smart_home/src/screen/settings/widgets/settings_dialogs.dart';
 import 'package:smart_home/src/screen/energy/energyPage.dart';
 
 class Dashboard extends StatefulWidget {
@@ -154,27 +154,29 @@ class _DashboardState extends State<Dashboard> {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 24),
-                  child: TextButton(
-                    onPressed: () {
-                      setState(() => _selectedIndex = 4);
-                      showProfileSettingsDialog(context, settings);
-                    },
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      foregroundColor: Theme.of(context)
-                          .navigationRailTheme
-                          .unselectedIconTheme
-                          ?.color,
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        SizedBox(
-                          width: 80,
-                          child: Icon(Icons.person_outline, size: 28),
-                        ),
-                        Text('Profile', style: TextStyle(fontSize: 14)),
-                      ],
+                  child: BlocBuilder<AuthCubit, AuthState>(
+                    builder: (context, state) => TextButton(
+                      key: const ValueKey('sidebar-logout'),
+                      onPressed: state.isBusy
+                          ? null
+                          : () => context.read<AuthCubit>().signOut(),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size.fromHeight(48),
+                        foregroundColor: Theme.of(context)
+                            .navigationRailTheme
+                            .unselectedIconTheme
+                            ?.color,
+                      ),
+                      child: const Row(
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            child: Icon(Icons.logout, size: 28),
+                          ),
+                          Text('Logout', style: TextStyle(fontSize: 18)),
+                        ],
+                      ),
                     ),
                   ),
                 ),

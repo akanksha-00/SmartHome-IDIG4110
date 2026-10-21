@@ -32,3 +32,5 @@ class HouseResponse(BaseModel):
     address: str | None = None
     postal_code: str | None = None
     city: str | None = None
+    owner_id: str | None = None
+   

@@ -1,0 +1,19 @@
+# Local Python environment
+.venv/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Git metadata
+.git/
+
+# Test and lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
