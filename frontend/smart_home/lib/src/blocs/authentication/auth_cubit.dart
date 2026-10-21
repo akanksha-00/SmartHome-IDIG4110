@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:bloc/bloc.dart';
 import 'package:smart_home/src/blocs/authentication/auth_state.dart';
+import 'package:smart_home/src/logging/app_log.dart';
 import 'package:smart_home/src/models/authentication/auth_user.dart';
 import 'package:smart_home/src/repositories/auth_repository.dart';
 
@@ -13,6 +14,9 @@ class AuthCubit extends Cubit<AuthState> {
     _sessionSubscription = repository.sessionChanges.listen(
       _sessionChanged,
       onError: (Object error, StackTrace stackTrace) {
+        if (isClosed) return;
+        AppLog.error('Auth', 'Could not refresh sign-in session',
+            error: error, stackTrace: stackTrace);
         if (!isClosed && state.user != null && !state.isBusy) {
           emit(AuthState(
               status: AuthStatus.signedIn,
@@ -55,12 +59,16 @@ class AuthCubit extends Cubit<AuthState> {
       if (!isClosed && operation == _operation) {
         emit(AuthState(status: AuthStatus.signedIn, user: user));
       }
-    } on AuthException catch (error) {
+    } on AuthException catch (error, stackTrace) {
       if (!isClosed && operation == _operation) {
+        AppLog.warning('Auth', 'Sign-in was rejected or is not configured',
+            error: error, stackTrace: stackTrace);
         emit(AuthState(status: AuthStatus.signedOut, error: error.message));
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
       if (!isClosed && operation == _operation) {
+        AppLog.error('Auth', 'Sign-in failed',
+            error: error, stackTrace: stackTrace);
         emit(const AuthState(
             status: AuthStatus.signedOut,
             error: 'Could not sign in. Please try again.'));
@@ -78,8 +86,10 @@ class AuthCubit extends Cubit<AuthState> {
       if (!isClosed && operation == _operation) {
         emit(const AuthState(status: AuthStatus.signedOut));
       }
-    } catch (_) {
+    } catch (error, stackTrace) {
       if (!isClosed && operation == _operation) {
+        AppLog.error('Auth', 'Sign-out failed',
+            error: error, stackTrace: stackTrace);
         emit(AuthState(
             status: AuthStatus.signedIn,
             user: user,

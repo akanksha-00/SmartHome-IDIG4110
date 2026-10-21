@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:smart_home/src/config/api_endpoints.dart';
+import 'package:smart_home/src/logging/app_log.dart';
 import 'package:web_socket_channel/status.dart' as socket_status;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -83,11 +84,18 @@ class WebSocketService {
         },
         onError: (Object error, StackTrace stackTrace) {
           if (!_disposed && generation == _generation) {
+            AppLog.error('WebSocket',
+                'Transport error | endpoint=${AppLog.endpoint(endpoint)}',
+                error: error, stackTrace: stackTrace);
             _messages.addError(error, stackTrace);
           }
         },
         onDone: () {
           if (!_disposed && generation == _generation) {
+            AppLog.warning(
+                'WebSocket',
+                'Connection closed by peer | code=${channel.closeCode ?? 'none'} '
+                    '| endpoint=${AppLog.endpoint(endpoint)}');
             _channel = null;
             _subscription = null;
             _setState(SocketConnectionState.disconnected);
@@ -128,6 +136,8 @@ class WebSocketService {
       _messages.add(json);
     } catch (error, stackTrace) {
       // Report a malformed frame without discarding later valid messages.
+      AppLog.warning('WebSocket', 'Ignored malformed JSON frame',
+          error: error, stackTrace: stackTrace);
       _messages.addError(error, stackTrace);
     }
   }
@@ -158,7 +168,11 @@ class WebSocketService {
             .close(socket_status.normalClosure)
             .timeout(connectionTimeout);
       } catch (error, stackTrace) {
-        if (!_disposed) _messages.addError(error, stackTrace);
+        if (!_disposed) {
+          AppLog.warning('WebSocket', 'Could not close connection cleanly',
+              error: error, stackTrace: stackTrace);
+          _messages.addError(error, stackTrace);
+        }
       }
     }
   }
@@ -166,6 +180,10 @@ class WebSocketService {
   void _setState(SocketConnectionState value) {
     if (_state == value) return;
     _state = value;
+    AppLog.info(
+        'WebSocket',
+        'Connection ${value.name} '
+            '| endpoint=${AppLog.endpoint(endpoint)}');
     if (!_states.isClosed) _states.add(value);
   }
 

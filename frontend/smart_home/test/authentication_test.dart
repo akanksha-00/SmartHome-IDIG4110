@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/main.dart';
 import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
+import 'package:smart_home/src/blocs/notifications/notification_bloc.dart';
 import 'package:smart_home/src/dummyData/auth_data.dart';
 import 'package:smart_home/src/models/authentication/auth_user.dart';
 import 'package:smart_home/src/repositories/auth_repository.dart';
@@ -14,6 +15,7 @@ import 'package:smart_home/src/theme/app_theme.dart';
 
 import 'helpers/auth_test_data.dart';
 import 'helpers/device_test_data.dart';
+import 'helpers/notification_test_data.dart';
 
 Widget authHarness(AuthRepository repository) => BlocProvider(
       create: (_) => AuthCubit(repository: repository),
@@ -186,9 +188,14 @@ void main() {
       expect(calls, 2);
       expect(find.text('Welcome, Alex'), findsOneWidget);
       if (logoutLocation == 'sidebar') {
+        tester
+            .element(find.byTooltip('Notifications'))
+            .read<NotificationBloc>()
+            .add(NotificationReceived(alertMessage()));
+        await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('Notifications'));
         await tester.pumpAndSettle();
-        expect(find.text('3 unread'), findsOneWidget);
+        expect(find.text('1 unread'), findsOneWidget);
         await tester.tap(find.text('Mark all as read'));
         await tester.pumpAndSettle();
         expect(find.text('0 unread'), findsOneWidget);
@@ -214,7 +221,8 @@ void main() {
       if (logoutLocation == 'sidebar') {
         await tester.tap(find.byTooltip('Notifications'));
         await tester.pumpAndSettle();
-        expect(find.text('3 unread'), findsOneWidget);
+        expect(find.text('0 unread'), findsOneWidget);
+        expect(find.text('No notifications to show'), findsOneWidget);
         await tester.tap(find.text('Close'));
         await tester.pumpAndSettle();
       }

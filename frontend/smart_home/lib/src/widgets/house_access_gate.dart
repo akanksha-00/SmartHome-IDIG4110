@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:smart_home/src/blocs/authentication/auth_cubit.dart';
 import 'package:smart_home/src/config/api_endpoints.dart';
+import 'package:smart_home/src/logging/app_log.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/auth_repository.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
@@ -44,18 +45,24 @@ class _HouseAccessGateState extends State<HouseAccessGate> {
   }
 
   Future<String?> _loadHouse() async {
-    final response = await _client!.get(ApiEndpoints.houses);
-    if (response is! List) {
-      throw const FormatException('Expected a list of authorized houses');
+    try {
+      final response = await _client!.get(ApiEndpoints.houses);
+      if (response is! List) {
+        throw const FormatException('Expected a list of authorized houses');
+      }
+      if (response.isEmpty) return null;
+      final first = response.first;
+      if (first is! Map ||
+          first['id'] is! String ||
+          (first['id'] as String).trim().isEmpty) {
+        throw const FormatException('The authorized house has no valid ID');
+      }
+      return first['id'] as String;
+    } catch (error, stackTrace) {
+      AppLog.error('Houses', 'Could not load authorized houses',
+          error: error, stackTrace: stackTrace);
+      rethrow;
     }
-    if (response.isEmpty) return null;
-    final first = response.first;
-    if (first is! Map ||
-        first['id'] is! String ||
-        (first['id'] as String).trim().isEmpty) {
-      throw const FormatException('The authorized house has no valid ID');
-    }
-    return first['id'] as String;
   }
 
   void _retry() {
