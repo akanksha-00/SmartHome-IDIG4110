@@ -40,10 +40,6 @@ else:
     from smarthome_api.repositories.room_repository import (
         RoomRepository,
     )
-    from smarthome_api.repositories.user_repository import (
-        UserRepository
-        )
-    
 
 
 # One instance each, shared by the services.
@@ -52,7 +48,6 @@ device_repository = DeviceRepository()
 event_repository = EventRepository()
 house_repository = HouseRepository()
 room_repository = RoomRepository()
-user_repository = UserRepository()
 
 
 __all__ = [
@@ -61,5 +56,4 @@ __all__ = [
     "event_repository",
     "house_repository",
     "room_repository",
-    "user_repository"
 ]

@@ -6,7 +6,6 @@ from pathlib import Path
 
 
 LOG_DIR = Path(os.getenv("LOG_DIR", "/app/logs"))
-LOG_TO_FILE = os.getenv("LOG_TO_FILE", "false").lower() == "true"
 
 
 class JsonlFormatter(logging.Formatter):
@@ -34,59 +33,43 @@ class JsonlFormatter(logging.Formatter):
         return json.dumps(entry, ensure_ascii=False)
 
 
-def setup_logging() -> None:
-    """Configure application, security, and MQTT logging."""
-
-    application_logger = logging.getLogger("smarthome")
-    security_logger = logging.getLogger("smarthome.security")
-    mqtt_logger = logging.getLogger("smarthome.mqtt")
-
-    loggers = (
-        application_logger,
-        security_logger,
-        mqtt_logger,
+def _create_file_handler(filename: str) -> logging.FileHandler:
+    handler = logging.FileHandler(
+        LOG_DIR / filename,
+        encoding="utf-8",
     )
+    handler.setFormatter(JsonlFormatter())
+    return handler
 
-    # Always log to the console.
-    for logger in loggers:
-        logger.setLevel(logging.INFO)
-        logger.propagate = False
 
-        if not any(
-            type(handler) is logging.StreamHandler
-            for handler in logger.handlers
-        ):
-            console_handler = logging.StreamHandler()
-            console_handler.setFormatter(JsonlFormatter())
-            logger.addHandler(console_handler)
-
-    # Stop here if file logging is disabled.
-    if not LOG_TO_FILE:
-        return
+def setup_logging() -> None:
+    """Configure application and security JSONL logging."""
 
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Application and MQTT logs share one file.
-    for logger in (application_logger, mqtt_logger):
-        if not any(
-            isinstance(handler, logging.FileHandler)
-            for handler in logger.handlers
-        ):
-            handler = logging.FileHandler(
-                LOG_DIR / "application.jsonl",
-                encoding="utf-8",
-            )
-            handler.setFormatter(JsonlFormatter())
-            logger.addHandler(handler)
+    application_logger = logging.getLogger("smarthome")
+    application_logger.setLevel(logging.INFO)
+    application_logger.propagate = False
 
-    # Security events have their own file.
-    if not any(
-        isinstance(handler, logging.FileHandler)
-        for handler in security_logger.handlers
-    ):
-        handler = logging.FileHandler(
-            LOG_DIR / "security.jsonl",
-            encoding="utf-8",
+    security_logger = logging.getLogger("smarthome.security")
+    security_logger.setLevel(logging.INFO)
+    security_logger.propagate = False
+
+    mqtt_logger = logging.getLogger("smarthome.mqtt")
+    mqtt_logger.setLevel(logging.INFO)
+    mqtt_logger.propagate = False
+
+    if not application_logger.handlers:
+        application_logger.addHandler(
+            _create_file_handler("application.jsonl")
         )
-        handler.setFormatter(JsonlFormatter())
-        security_logger.addHandler(handler)
+
+    if not security_logger.handlers:
+        security_logger.addHandler(
+            _create_file_handler("security.jsonl")
+        )
+
+    if not mqtt_logger.handlers:
+        mqtt_logger.addHandler(
+            _create_file_handler("application.jsonl")
+        )

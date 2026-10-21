@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
-from smarthome_api.api.dependencies import require_house_access
 from smarthome_api.schemas.room import (
     RoomCreate,
     RoomResponse,
@@ -33,7 +32,6 @@ router = APIRouter(
 @router.get(
     "",
     response_model=list[RoomResponse],
-    dependencies=[Depends(require_house_access)]
 )
 async def get_rooms(
     house_id: str,
@@ -53,7 +51,6 @@ async def get_rooms(
 @router.get(
     "/{room_id}",
     response_model=RoomResponse,
-    dependencies=[Depends(require_house_access)]
 )
 async def get_room_by_id(
     house_id: str,
@@ -78,7 +75,6 @@ async def get_room_by_id(
     "",
     response_model=RoomResponse,
     status_code=201,
-    dependencies=[Depends(require_house_access)]
 )
 async def create_new_room(
     house_id: str,
@@ -101,7 +97,6 @@ async def create_new_room(
 
 @router.delete(
     "/{room_id}",
-    dependencies=[Depends(require_house_access)]
 )
 async def remove_room(
     house_id: str,
@@ -132,7 +127,6 @@ async def remove_room(
 @router.get(
     "/{room_id}/devices",
     response_model=list[DeviceResponse],
-    dependencies=[Depends(require_house_access)]
 )
 async def get_devices_in_room(
     house_id: str,

@@ -45,31 +45,6 @@ DeviceRepository devicesWith(ApiClient api) =>
     DeviceRepository(apiClient: api, houseId: 'house-1');
 
 void main() {
-  test(
-      'every HTTP method reads the latest access token and clears it on logout',
-      () async {
-    String? token = 'first';
-    final seen = <String?>[];
-    final api = ApiClient(
-      accessToken: () => token,
-      client: MockClient((request) async {
-        seen.add(request.headers['authorization']);
-        return jsonResponse({});
-      }),
-    );
-    addTearDown(api.close);
-    const url = 'https://backend.example/api/v1/houses';
-    await api.get(url);
-    token = 'refreshed';
-    await api.post(url, {});
-    await api.patch(url, {});
-    await api.put(url, {});
-    await api.delete(url);
-    token = null;
-    await api.get(url);
-    expect(seen, ['Bearer first', ...List.filled(4, 'Bearer refreshed'), null]);
-  });
-
   test('house device route preserves complete generic API records', () async {
     final api = mockedApi((request) {
       expect(request.method, 'GET');
@@ -213,41 +188,6 @@ void main() {
     expect(calls, 0);
   });
 
-  test('commands POST typed state and accept publication acknowledgements',
-      () async {
-    final api = mockedApi((request) {
-      expect(request.method, 'POST');
-      expect(
-          request.url.path, '/api/v1/houses/house-1/devices/device-1/command');
-      expect(request.headers['content-type'], 'application/json');
-      expect(jsonDecode(request.body), {
-        'state': {'power': true, 'brightness': 70, 'speed': 2}
-      });
-      return jsonResponse({
-        'house_id': 'house-1',
-        'device_id': 'device-1',
-        'topic': 'smarthome/house-1/device-1/command',
-        'state': {'power': true, 'brightness': 70, 'speed': 2},
-      });
-    });
-    await devicesWith(api).sendCommand(
-        id: 'device-1', updates: {'power': true, 'brightness': 70, 'speed': 2});
-  });
-
-  test('commands reject acknowledgements for another house or device',
-      () async {
-    for (final ack in [
-      {'house_id': 'other-house', 'device_id': 'device-1'},
-      {'house_id': 'house-1', 'device_id': 'other-device'},
-      <String, Object?>{},
-    ]) {
-      final repo = devicesWith(mockedApi((_) => jsonResponse(ack)));
-      await expectLater(
-          repo.sendCommand(id: 'device-1', updates: {'power': true}),
-          throwsFormatException);
-    }
-  });
-
   test('HTTP errors are exposed rather than converted to empty results',
       () async {
     final repo =
@@ -345,10 +285,11 @@ void main() {
         }));
     addTearDown(api.close);
     await expectLater(
-        devicesWith(api).sendCommand(id: 'device-1', updates: {'power': true}),
+        api.patch(ApiEndpoints.device('h', 'd'), [
+          {'name': 'power', 'value': true}
+        ]),
         throwsA(isA<TimeoutException>()));
     expect(calls, 1);
-    response.complete(
-        jsonResponse({'house_id': 'house-1', 'device_id': 'device-1'}));
+    response.complete(jsonResponse(deviceJson()));
   });
 }

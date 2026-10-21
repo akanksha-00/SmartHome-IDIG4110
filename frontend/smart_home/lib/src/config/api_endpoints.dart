@@ -3,11 +3,8 @@ class ApiEndpoints {
   ApiEndpoints._();
 
   // Keep this without a trailing slash.
-  // The local CORS proxy forwards port 8001 to the SSH tunnel on port 8000.
-  static const String base = '127.0.0.1:8001';
-  static const String baseUrl = 'http://${base}';
-  // WebSockets bypass the HTTP-only proxy and use the SSH tunnel directly.
-  static const String wsBaseUrl = 'ws://127.0.0.1:8000';
+  // The local CORS proxy forwards port 8002 to the SSH tunnel on port 8001.
+  static const String baseUrl = 'http://127.0.0.1:8002';
   static const String apiRoot = '$baseUrl/api/v1';
   static const String houses = '$apiRoot/houses';
 
@@ -21,19 +18,18 @@ class ApiEndpoints {
   // /api/v1/houses/{house_id}/devices/{device_id}
   // get: fetch device data ,
   // put: update device metadata ,
-  // patch: update device capabilities,
+  // patch: update device state,
   // delete: remove device
   static String device(String houseId, String deviceId) =>
       '${devices(houseId)}/${_segment(deviceId)}';
 
-  // update device state
   static String deviceCommand(String houseId, String deviceId) =>
       '${device(houseId, deviceId)}/command';
 
   // Connect directly to the SSH tunnel: the HTTP CORS proxy has no WS support.
   static const String webSocketBaseUrl = String.fromEnvironment(
     'SMART_HOME_WS_BASE_URL',
-    defaultValue: wsBaseUrl,
+    defaultValue: 'ws://127.0.0.1:8001',
   );
   static String houseWebSocket(String houseId) =>
       '$webSocketBaseUrl/api/v1/houses/${_segment(houseId)}/ws';

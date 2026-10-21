@@ -3,9 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:smart_home/src/blocs/rooms/room_bloc.dart';
 
 class RoomStartupGate extends StatelessWidget {
-  const RoomStartupGate({super.key, required this.child, this.onSignOut});
+  const RoomStartupGate({super.key, required this.child});
   final Widget child;
-  final VoidCallback? onSignOut;
 
   @override
   Widget build(BuildContext context) => BlocBuilder<RoomBloc, RoomState>(
@@ -31,10 +30,6 @@ class RoomStartupGate extends StatelessWidget {
                       label: const Text('Retry'),
                     ),
                   ],
-                  if (onSignOut != null)
-                    TextButton(
-                        onPressed: onSignOut,
-                        child: const Text('Back to sign in')),
                 ],
               ),
             ),

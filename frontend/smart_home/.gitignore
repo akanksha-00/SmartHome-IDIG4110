@@ -31,11 +31,6 @@ migrate_working_dir/
 .pub/
 /build/
 
-# Local build-time configuration; commit only the template.
-.env
-.env.*
-!.env.example
-
 # Symbolication related
 app.*.symbols
 
