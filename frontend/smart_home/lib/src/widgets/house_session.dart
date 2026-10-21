@@ -5,7 +5,6 @@ import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 import 'package:smart_home/src/blocs/notifications/notification_bloc.dart';
 import 'package:smart_home/src/blocs/rooms/room_bloc.dart';
 import 'package:smart_home/src/config/api_endpoints.dart';
-import 'package:smart_home/src/dummyData/notification_data.dart';
 import 'package:smart_home/src/repositories/api_client.dart';
 import 'package:smart_home/src/repositories/auth_repository.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
@@ -106,8 +105,7 @@ class _HouseSessionState extends State<HouseSession>
             ),
             BlocProvider<NotificationBloc>(
               lazy: false,
-              create: (_) => NotificationBloc()
-                ..add(NotificationsLoaded(dummyNotifications())),
+              create: (_) => NotificationBloc(realtime: _realtime),
             ),
           ],
           child: DeviceStartupGate(

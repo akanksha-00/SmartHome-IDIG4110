@@ -5,7 +5,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 import 'package:smart_home/src/blocs/notifications/notification_bloc.dart';
-import 'package:smart_home/src/dummyData/notification_data.dart';
 import 'package:smart_home/src/models/devices/device_message.dart';
 import 'package:smart_home/src/repositories/house_realtime_repository.dart';
 import 'package:smart_home/src/screen/dashboard/dashboard_notifications.dart';
@@ -18,13 +17,7 @@ import 'package:smart_home/src/services/web_socket_service.dart';
 
 import 'helpers/device_test_data.dart';
 import 'helpers/fake_web_socket.dart';
-
-NotificationBloc notificationBloc({bool withDemoData = false}) {
-  final bloc = NotificationBloc();
-  addTearDown(bloc.close);
-  if (withDemoData) bloc.add(NotificationsLoaded(dummyNotifications()));
-  return bloc;
-}
+import 'helpers/notification_test_data.dart';
 
 Widget notificationHarness(DeviceBloc devices, NotificationBloc notifications,
         {Widget? body}) =>
@@ -50,24 +43,28 @@ Badge notificationBadge(WidgetTester tester) =>
         matching: find.byType(Badge)));
 
 void main() {
-  testWidgets('demo notifications can be read individually and all at once',
+  testWidgets('received alerts can be read individually and all at once',
       (tester) async {
     var requests = 0;
     final devices = testDeviceBloc((_) async {
       requests++;
       return jsonResponse([]);
     });
-    final notifications = notificationBloc(withDemoData: true);
+    final notifications = testNotificationBloc();
+    for (var index = 1; index <= 3; index++) {
+      notifications.add(
+          NotificationReceived(alertMessage(deviceId: 'test-device-$index')));
+    }
     await tester.pumpWidget(notificationHarness(devices, notifications));
     await tester.pumpAndSettle();
     expect(notificationBadge(tester).isLabelVisible, isTrue);
     expect((notificationBadge(tester).label! as Text).data, '3');
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
-    expect(find.text('Demo notifications'), findsOneWidget);
+    expect(find.text('Demo notifications'), findsNothing);
     expect(find.text('3 unread'), findsOneWidget);
     expect(find.text('Device alerts'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('notification-demo-smoke')));
+    await tester.tap(find.byKey(const ValueKey('notification-3')));
     await tester.pumpAndSettle();
     expect(find.text('2 unread'), findsOneWidget);
     expect(notifications.state.notifications.first.isRead, isTrue);
@@ -80,7 +77,7 @@ void main() {
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     expect(find.text('0 unread'), findsOneWidget);
-    expect(notifications.state.notifications, hasLength(5));
+    expect(notifications.state.notifications, hasLength(3));
     expect(requests, 0); // Reading the feed never calls a service or API.
     expect(tester.takeException(), isNull);
   });
@@ -91,12 +88,15 @@ void main() {
       await tester.binding.setSurfaceSize(size);
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final devices = testDeviceBloc((_) async => jsonResponse([]));
-      await tester.pumpWidget(
-          notificationHarness(devices, notificationBloc(withDemoData: true)));
+      final notifications = testNotificationBloc();
+      for (var index = 1; index <= 5; index++) {
+        notifications.add(
+            NotificationReceived(alertMessage(deviceId: 'test-device-$index')));
+      }
+      await tester.pumpWidget(notificationHarness(devices, notifications));
       await tester.tap(find.byTooltip('Notifications'));
       await tester.pumpAndSettle();
-      final lastItem =
-          find.byKey(const ValueKey('notification-demo-device-added'));
+      final lastItem = find.byKey(const ValueKey('notification-1'));
       await tester.scrollUntilVisible(lastItem, 150);
       expect(lastItem, findsOneWidget);
       await tester.tap(find.text('Close'));
@@ -149,15 +149,15 @@ void main() {
               sensorJson('device-013', 'smoke_detector', 'smoke', false),
             ]),
         realtime: realtime);
+    final notifications = testNotificationBloc(realtime: realtime);
     await loadDevices(bloc);
-    await tester.pumpWidget(
-        notificationHarness(bloc, notificationBloc(withDemoData: true),
-            body: BlocBuilder<DeviceBloc, DeviceState>(
-                builder: (context, state) => ApiDeviceCard(
-                      device: state.devices.single,
-                      subtitle: 'Living Room',
-                      onStateChanged: (_) {},
-                    ))));
+    await tester.pumpWidget(notificationHarness(bloc, notifications,
+        body: BlocBuilder<DeviceBloc, DeviceState>(
+            builder: (context, state) => ApiDeviceCard(
+                  device: state.devices.single,
+                  subtitle: 'Living Room',
+                  onStateChanged: (_) {},
+                ))));
     await tester.pumpAndSettle();
     expect(find.text('Live'), findsOneWidget);
     expect(find.textContaining('No smoke detected'), findsOneWidget);
@@ -172,13 +172,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Smoke detected'), findsOneWidget);
     expect(find.text('smoke detected in bedroom!'), findsOneWidget);
-    expect(bloc.state.unreadAlertCount, 1);
-    expect((notificationBadge(tester).label! as Text).data, '4');
+    expect(notifications.state.unreadCount, 1);
+    expect((notificationBadge(tester).label! as Text).data, '1');
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
-    expect(bloc.state.unreadAlertCount, 0);
-    expect((notificationBadge(tester).label! as Text).data, '3');
+    expect(find.byType(SnackBar), findsNothing);
+    expect(notifications.state.unreadCount, 1);
+    expect((notificationBadge(tester).label! as Text).data, '1');
     expect(find.textContaining('Living Room · Active'), findsOneWidget);
     await tester.tap(find.text('Mark all as read'));
     await tester.pumpAndSettle();
@@ -205,8 +206,9 @@ void main() {
     final bloc = testDeviceBloc((_) async => jsonResponse([
           sensorJson('device-014', 'temperature_sensor', 'temperature', 35),
         ]));
+    final notifications = testNotificationBloc();
     await loadDevices(bloc);
-    await tester.pumpWidget(notificationHarness(bloc, notificationBloc(),
+    await tester.pumpWidget(notificationHarness(bloc, notifications,
         body: BlocBuilder<DeviceBloc, DeviceState>(
             builder: (context, state) => ApiDeviceCard(
                   device: state.devices.single,
@@ -218,7 +220,7 @@ void main() {
         DeviceMessage(deviceId: 'device-014', updates: {'temperature': 37.5})));
     await tester.pumpAndSettle();
     expect(find.textContaining('37.5°C'), findsOneWidget);
-    expect(bloc.state.alerts, isEmpty);
+    expect(notifications.state.notifications, isEmpty);
     await tester.tap(find.byTooltip('Notifications'));
     await tester.pumpAndSettle();
     expect(find.text('No notifications to show'), findsOneWidget);

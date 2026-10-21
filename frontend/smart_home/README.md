@@ -53,20 +53,65 @@ The sign-in illustration is saved at
 image generation tool; the final prompt is in
 [the illustration notes](docs/auth_house_illustration.md).
 
-## Notifications demo
+## Live alert notifications
 
-The app bar bell shows an unread count and opens the notification list.
-`NotificationBloc` in `lib/src/blocs/notifications/` owns the in-memory feed and
-supports marking one notification or all notifications as read. The five demo
-entries come from `lib/src/dummyData/notification_data.dart` and appear under
-**Demo notifications**, separately from existing live device alerts.
+The app bar bell, unread count, alert popup and notification list are backed by
+`NotificationBloc` in `lib/src/blocs/notifications/`. The feed starts empty.
+It listens to the same `HouseRealtimeRepository` as `DeviceBloc`; no second
+socket or notification API is created. `DeviceBloc` owns device readings and
+connection status, while `NotificationBloc` owns alert history and read state.
 
-The notification BLoC is created for each signed-in house session and disposed
-on logout. Read state lasts for that session; signing in again reloads the demo
-entries. No notification service, API call, or new WebSocket subscription is
-connected. The existing draft notification repository is unused. A future data
-source can supply its snapshot through `NotificationsLoaded` once the backend
-contract is available.
+Only backend `device_event` messages with `alert: true` create notifications.
+The backend's `notification_message` is displayed as received, with an ID/event
+fallback if it is missing. Repeated active events for one device/capability do
+not create duplicates. A matching `alert: false` event marks the incident as
+cleared; a later active event creates a new incident. State-only reports update
+devices without inferring notifications or threshold decisions in Flutter.
+
+Up to 50 incidents are kept newest first for the signed-in house session.
+Opening the list does not change read state; tap an entry, its read icon, or
+**Mark all as read**. Read and cleared indicators and sequence numbers are local
+UI state; nothing is sent back to the backend or added to its message schema.
+No timestamps or severity values are assumed, since the stream supplies neither.
+History survives reconnection but is disposed on logout and is not replayed by
+the backend. The draft notification HTTP repository remains unused.
+
+The backend currently logs threshold alerts calculated from `/state` messages
+without broadcasting their alert details. Such a state report can update the
+sensor card but cannot produce a notification through the current wire format.
+The ownership decision is recorded in
+[the live alerts ADR](../../docs/adr/2026-10-20-live-alert-notification-bloc.md).
+
+## Console diagnostics
+
+`lib/src/logging/app_log.dart` provides console logging without a new package or
+external service. Logs appear in the terminal running `flutter run` and in
+Chrome DevTools **Console**. Filter for `[SmartHome]`, `[ERROR]` or `[WARN]`.
+Hot restart after adding this code so the global error handlers are installed.
+
+Each entry has a UTC timestamp, severity and source. HTTP entries include the
+method, endpoint path, status (or `none` if no response arrived), and elapsed
+milliseconds. They distinguish an unsuccessful HTTP status, a timeout, and an
+invalid JSON response. A successful HTTP response can still be followed by a
+BLoC failure if its JSON does not match the required device/room schema.
+WebSocket entries cover connection state, remote close code, malformed frames,
+invalid house messages and scheduled retries. Handled house/device/room/auth
+failures are logged where they are caught; a BLoC observer and Flutter/platform
+handlers also capture unhandled failures. Existing error screens, command
+rollback, retry behavior and Flutter's default error reporting remain in place.
+
+App-owned diagnostics omit headers, tokens, credentials, URL queries/fragments,
+raw request/response bodies, WebSocket frames and exception text. They include
+exception types and up to ten stack lines instead. Endpoint paths and device/
+house IDs can appear as diagnostic context. Normal Flutter/SDK diagnostics are
+separate and retain their existing behavior. HTTP timing measures the request,
+not the device's MQTT execution time.
+
+Logging is enabled by default for debug/profile builds and disabled for release
+builds. Override explicitly with `--dart-define=SMART_HOME_LOGS=true` or `false`.
+No log history is persisted or uploaded by the app, and no log viewer is added.
+The rationale is recorded in
+[the console logging ADR](../../docs/adr/2026-10-20-console-failure-logging.md).
 
 ## Local API through an SSH tunnel
 
