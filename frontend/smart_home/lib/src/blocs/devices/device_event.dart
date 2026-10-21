@@ -47,7 +47,3 @@ final class DeviceDiscovered extends DeviceEvent {
   final ApiDevice device;
   final List<DeviceMessage> messages;
 }
-
-final class DeviceAlertsRead extends DeviceEvent {
-  const DeviceAlertsRead();
-}

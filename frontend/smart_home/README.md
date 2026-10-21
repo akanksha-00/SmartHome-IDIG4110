@@ -53,21 +53,6 @@ The sign-in illustration is saved at
 image generation tool; the final prompt is in
 [the illustration notes](docs/auth_house_illustration.md).
 
-## Notifications demo
-
-The app bar bell shows an unread count and opens the notification list.
-`NotificationBloc` in `lib/src/blocs/notifications/` owns the in-memory feed and
-supports marking one notification or all notifications as read. The five demo
-entries come from `lib/src/dummyData/notification_data.dart` and appear under
-**Demo notifications**, separately from existing live device alerts.
-
-The notification BLoC is created for each signed-in house session and disposed
-on logout. Read state lasts for that session; signing in again reloads the demo
-entries. No notification service, API call, or new WebSocket subscription is
-connected. The existing draft notification repository is unused. A future data
-source can supply its snapshot through `NotificationsLoaded` once the backend
-contract is available.
-
 ## Local API through an SSH tunnel
 
 When the remote backend has no CORS headers, use the local proxy for Flutter web.

@@ -10,8 +10,8 @@ class DashboardNotifications extends StatelessWidget {
   final Map<String, String> roomNames;
 
   void _open(BuildContext context) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     final bloc = context.read<DeviceBloc>();
-    bloc.add(const DeviceAlertsRead());
     showDialog<void>(
         context: context,
         builder: (_) => MultiBlocProvider(
@@ -24,12 +24,13 @@ class DashboardNotifications extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => BlocConsumer<DeviceBloc, DeviceState>(
+  Widget build(BuildContext context) =>
+      BlocConsumer<NotificationBloc, NotificationState>(
         listenWhen: (previous, current) =>
-            previous.alertRevision != current.alertRevision,
+            previous.latestSequence != current.latestSequence,
         listener: (context, state) {
-          if (state.alerts.isEmpty) return;
-          final alert = state.alerts.first;
+          if (state.notifications.isEmpty) return;
+          final alert = state.notifications.first;
           if (!alert.isActive) return;
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             duration: const Duration(seconds: 8),
@@ -42,48 +43,47 @@ class DashboardNotifications extends StatelessWidget {
                 SnackBarAction(label: 'View', onPressed: () => _open(context)),
           ));
         },
-        builder: (context, state) {
-          final live = state.connection == SocketConnectionState.connected;
-          final label = live ? 'Live' : 'Reconnecting';
-          return Row(mainAxisSize: MainAxisSize.min, children: [
-            if (state.realtimeEnabled)
-              Tooltip(
-                message: state.streamError != null
-                    ? 'Live update error: ${state.streamError}'
-                    : live
-                        ? 'Receiving house updates'
-                        : 'Showing cached data; controls wait for reconnection',
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(
-                      state.streamError != null
-                          ? Icons.error_outline
-                          : Icons.circle,
-                      size: 12,
-                      color: live && state.streamError == null
-                          ? Colors.greenAccent
-                          : Colors.amber),
-                  const SizedBox(width: 6),
-                  Text(label, style: const TextStyle(fontSize: 12)),
-                  const SizedBox(width: 12),
-                ]),
+        builder: (context, notifications) =>
+            BlocBuilder<DeviceBloc, DeviceState>(
+          builder: (context, state) {
+            final live = state.connection == SocketConnectionState.connected;
+            final label = live ? 'Live' : 'Reconnecting';
+            return Row(mainAxisSize: MainAxisSize.min, children: [
+              if (state.realtimeEnabled)
+                Tooltip(
+                  message: state.streamError != null
+                      ? 'Live update error: ${state.streamError}'
+                      : live
+                          ? 'Receiving house updates'
+                          : 'Showing cached data; controls wait for reconnection',
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(
+                        state.streamError != null
+                            ? Icons.error_outline
+                            : Icons.circle,
+                        size: 12,
+                        color: live && state.streamError == null
+                            ? Colors.greenAccent
+                            : Colors.amber),
+                    const SizedBox(width: 6),
+                    Text(label, style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 12),
+                  ]),
+                ),
+              IconButton(
+                key: const ValueKey('app-bar-notifications'),
+                tooltip: 'Notifications',
+                onPressed: () => _open(context),
+                icon: Badge(
+                  isLabelVisible: notifications.unreadCount > 0,
+                  label: Text(notifications.unreadCount > 99
+                      ? '99+'
+                      : '${notifications.unreadCount}'),
+                  child: const Icon(Icons.notifications, color: Colors.amber),
+                ),
               ),
-            BlocBuilder<NotificationBloc, NotificationState>(
-              builder: (context, notifications) {
-                final unread =
-                    notifications.unreadCount + state.unreadAlertCount;
-                return IconButton(
-                  key: const ValueKey('app-bar-notifications'),
-                  tooltip: 'Notifications',
-                  onPressed: () => _open(context),
-                  icon: Badge(
-                    isLabelVisible: unread > 0,
-                    label: Text(unread > 99 ? '99+' : '$unread'),
-                    child: const Icon(Icons.notifications, color: Colors.amber),
-                  ),
-                );
-              },
-            ),
-          ]);
-        },
+            ]);
+          },
+        ),
       );
 }

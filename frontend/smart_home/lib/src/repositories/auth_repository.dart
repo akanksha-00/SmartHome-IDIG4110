@@ -1,4 +1,5 @@
 import 'package:smart_home/src/models/authentication/auth_user.dart';
+import 'package:smart_home/src/logging/app_log.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
 
 class AuthException implements Exception {
@@ -61,10 +62,13 @@ class AuthRepository {
     if (client == null) return;
     try {
       await client.auth.signOut(scope: supabase.SignOutScope.local);
-    } catch (_) {
+    } catch (error, stackTrace) {
       // The SDK clears the local session before requesting server revocation.
       // A network failure must not restore a user whose token is already gone.
       if (client.auth.currentSession != null) rethrow;
+      AppLog.warning('Auth',
+          'Local sign-out completed, but remote token revocation failed',
+          error: error, stackTrace: stackTrace);
     }
   }
 

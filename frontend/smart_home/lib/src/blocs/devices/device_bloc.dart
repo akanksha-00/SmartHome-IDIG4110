@@ -4,9 +4,9 @@ import 'package:bloc/bloc.dart';
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:smart_home/src/blocs/devices/device_event.dart';
 import 'package:smart_home/src/blocs/devices/device_state.dart';
+import 'package:smart_home/src/logging/app_log.dart';
 import 'package:smart_home/src/models/devices/api_device.dart';
 import 'package:smart_home/src/models/devices/device_message.dart';
-import 'package:smart_home/src/models/notifications/device_alert.dart';
 import 'package:smart_home/src/repositories/device_repository.dart';
 import 'package:smart_home/src/repositories/house_realtime_repository.dart';
 import 'package:smart_home/src/services/web_socket_service.dart';
@@ -51,11 +51,6 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
     });
     on<DeviceStreamFailed>(
         (event, emit) => emit(state.copyWith(streamError: event.error)));
-    on<DeviceAlertsRead>((event, emit) => emit(state.copyWith(
-          alerts: [
-            for (final alert in state.alerts) alert.copyWith(isRead: true)
-          ],
-        )));
     if (realtime != null) {
       _messageSubscription = realtime!.messages.listen(
         (message) => add(DeviceRealtimeReceived(message)),
@@ -80,7 +75,6 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
   final _buffer = <String, Map<String, Object?>>{};
   final _unknown = <String, List<DeviceMessage>>{};
   final _changedDuringLoad = <ApiDevice>[];
-  final _activeAlerts = <(String, String)>{};
   bool _loadingSnapshot = false;
   bool _closing = false;
 
@@ -155,8 +149,11 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
       for (final message in unknown) {
         add(DeviceRealtimeReceived(message));
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (emit.isDone || _closing) return;
+      AppLog.error(
+          'DeviceBloc', 'Could not load devices | house=${repository.houseId}',
+          error: error, stackTrace: stackTrace);
       emit(state.copyWith(status: DeviceLoadStatus.failed, loadError: error));
     } finally {
       _loadingSnapshot = false;
@@ -180,13 +177,15 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
     final device = state.devices.where((d) => d.id == event.id).firstOrNull;
     if (device == null || event.updates.isEmpty) {
       _updateError(
-          StateError('Select a loaded device and a state update'), emit);
+          StateError('Select a loaded device and a state update'), emit,
+          deviceId: event.id);
       return;
     }
     if (_pendingUpdates.containsKey(event.id)) return;
     if (_loadingSnapshot) {
       _updateError(
-          StateError('Wait for device data to finish refreshing'), emit);
+          StateError('Wait for device data to finish refreshing'), emit,
+          deviceId: event.id);
       return;
     }
     // Commands carry the whole current state, with only the edited values
@@ -212,7 +211,7 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
         if (current != null) _changedDuringLoad.add(current);
       }
       emit(state.copyWith(pendingDeviceIds: _pendingUpdates.keys.toSet()));
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (emit.isDone || _closing) return;
       _pendingUpdates.remove(event.id);
       final current = state.devices.where((d) => d.id == event.id).firstOrNull;
@@ -232,25 +231,30 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
         if (_loadingSnapshot) _changedDuringLoad.add(restored);
         restoredDevices = _replace(restored);
       }
-      _updateError(error, emit, devices: restoredDevices);
+      _updateError(error, emit,
+          devices: restoredDevices, deviceId: event.id, stackTrace: stackTrace);
     }
   }
 
   void _updateError(Object error, Emitter<DeviceState> emit,
-          {List<ApiDevice>? devices}) =>
-      emit(state.copyWith(
-        devices: devices,
-        pendingDeviceIds: _pendingUpdates.keys.toSet(),
-        updateError: error,
-        updateErrorRevision: state.updateErrorRevision + 1,
-      ));
+      {List<ApiDevice>? devices, String? deviceId, StackTrace? stackTrace}) {
+    AppLog.error('DeviceBloc',
+        'Device command failed | house=${repository.houseId} | device=$deviceId',
+        error: error, stackTrace: stackTrace);
+    emit(state.copyWith(
+      devices: devices,
+      pendingDeviceIds: _pendingUpdates.keys.toSet(),
+      updateError: error,
+      updateErrorRevision: state.updateErrorRevision + 1,
+    ));
+  }
 
   void _live(DeviceRealtimeReceived event, Emitter<DeviceState> emit) {
     if (_closing) return;
     final message = event.message;
     final buffering = _loadingSnapshot || !state.hasLoaded;
     if (buffering) {
-      // Coalesce capability values while loading; alerts remain immediate.
+      // Coalesce capability values while loading.
       _buffer.putIfAbsent(message.deviceId, () => {}).addAll(message.updates);
     }
     final device =
@@ -270,47 +274,10 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
         unawaited(_fetchUnknown(message.deviceId));
       }
     }
-    final alerts = _alertsFor(message, device);
     emit(state.copyWith(
         devices: devices,
         pendingDeviceIds: _pendingUpdates.keys.toSet(),
-        streamError: null,
-        alerts: alerts,
-        alertRevision:
-            alerts.isNotEmpty && alerts.first.sequence > state.alertRevision
-                ? alerts.first.sequence
-                : state.alertRevision));
-  }
-
-  List<DeviceAlert> _alertsFor(DeviceMessage message, ApiDevice? device) {
-    final alerts = state.alerts;
-    final event = message.event;
-    if (event == null) return alerts;
-    final key = (message.deviceId, event);
-    if (!message.alert) {
-      _activeAlerts.remove(key);
-      return [
-        for (final alert in alerts)
-          if ((alert.deviceId, alert.event) == key)
-            alert.copyWith(isActive: false)
-          else
-            alert
-      ];
-    }
-    if (!_activeAlerts.add(key)) return alerts;
-    final text = message.notificationMessage;
-    return [
-      DeviceAlert(
-        sequence: state.alertRevision + 1,
-        deviceId: message.deviceId,
-        event: event,
-        value: message.value,
-        message: text != null && text.trim().isNotEmpty
-            ? text
-            : '${device?.name ?? message.deviceId}: $event alert',
-      ),
-      ...alerts.take(49)
-    ];
+        streamError: null));
   }
 
   Future<void> _fetchUnknown(String id) async {
@@ -321,9 +288,17 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
         final messages = _unknown[id] ?? [];
         add(DeviceDiscovered(device, messages));
       }
-    } catch (error) {
+    } catch (error, stackTrace) {
       _unknown.remove(id);
-      if (!_closing) add(DeviceStreamFailed(error));
+      if (!_closing) {
+        AppLog.error(
+            'DeviceBloc',
+            'Could not load reported device | house=${repository.houseId} '
+                '| device=$id',
+            error: error,
+            stackTrace: stackTrace);
+        add(DeviceStreamFailed(error));
+      }
     }
   }
 
@@ -370,8 +345,14 @@ class DeviceBloc extends Bloc<DeviceEvent, DeviceState> {
           devices: existing != null ? state.devices : [...state.devices, saved],
           isAdding: false,
           lastAddedDeviceId: saved.id));
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (emit.isDone || _closing) return;
+      AppLog.error(
+          'DeviceBloc',
+          'Could not add device | house=${repository.houseId} '
+              '| device=${event.device.id}',
+          error: error,
+          stackTrace: stackTrace);
       emit(state.copyWith(isAdding: false, addError: error));
     }
   }
