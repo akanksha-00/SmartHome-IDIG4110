@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -148,9 +149,57 @@ class DeviceResponse(BaseModel):
     )
 
     state: dict[str, Any] = Field(
-        default_factory=dict
+        default_factory=dict,
+        description=(
+            "What the device last reported about itself."
+        ),
+    )
+
+    desired: dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "What was last asked of the device. Empty when "
+            "nothing is outstanding."
+        ),
+    )
+
+    in_sync: bool = Field(
+        default=True,
+        description=(
+            "False while a command has been sent but not "
+            "yet confirmed by the device."
+        ),
     )
 
     status: dict[str, Any] = Field(
         default_factory=dict
+    )
+
+# ==================================================
+# DEVICE HISTORY
+# ==================================================
+
+class HistoryPoint(BaseModel):
+    """
+    One recorded measurement.
+    """
+
+    metric: str
+    value: Any
+
+    observed_at: datetime = Field(
+        description=(
+            "When the measurement was taken, according to "
+            "time_source."
+        ),
+    )
+
+    received_at: datetime | None = None
+
+    time_source: str | None = Field(
+        default=None,
+        description=(
+            "Which clock filled observed_at. 'backend' "
+            "until devices report their own timestamp."
+        ),
     )

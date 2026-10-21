@@ -1,7 +1,6 @@
-from fastapi import APIRouter, HTTPException
-
+from fastapi import APIRouter, Depends, HTTPException, Query
 from smarthome_api.schemas.mqtt import DeviceCommand
-
+from smarthome_api.api.dependencies import require_house_access
 from smarthome_api.services.device_command_service import (
     send_device_command,
 )
@@ -11,6 +10,7 @@ from smarthome_api.schemas.device import (
     DeviceCreate,
     DeviceResponse,
     DeviceUpdate,
+    HistoryPoint,
 )
 
 from smarthome_api.services.device_service import (
@@ -19,6 +19,7 @@ from smarthome_api.services.device_service import (
     delete_device,
     get_all_devices,
     get_device,
+    get_device_history,
     unassign_device_from_room,
     update_device,
     update_device_state,
@@ -30,7 +31,6 @@ router = APIRouter(
     tags=["Devices"],
 )
 
-
 # ==================================================
 # DEVICES
 # ==================================================
@@ -39,9 +39,11 @@ router = APIRouter(
     "",
     response_model=list[DeviceResponse],
     response_model_exclude_none=True,
+    dependencies=[Depends(require_house_access)],
 )
 async def get_devices(
     house_id: str,
+    #house: dict = Depends(require_house_access)
 ):
     result = get_all_devices(house_id)
 
@@ -63,6 +65,7 @@ async def get_devices(
     response_model=DeviceResponse,
     response_model_exclude_none=True,
     status_code=201,
+    dependencies=[Depends(require_house_access)]
 )
 async def create_new_device(
     house_id: str,
@@ -90,6 +93,7 @@ async def create_new_device(
 
 @router.post(
     "/{device_id}/command",
+    dependencies=[Depends(require_house_access)]
 )
 async def send_command(
     house_id: str,
@@ -138,6 +142,7 @@ async def send_command(
     "/{device_id}",
     response_model=DeviceResponse,
     response_model_exclude_none=True,
+    dependencies=[Depends(require_house_access)]
 )
 async def get_device_by_id(
     house_id: str,
@@ -158,6 +163,45 @@ async def get_device_by_id(
 
 
 # ==================================================
+# DEVICE HISTORY
+# ==================================================
+
+@router.get(
+    "/{device_id}/history",
+    response_model=list[HistoryPoint],
+    dependencies=[Depends(require_house_access)]
+    )
+async def get_history(
+    house_id: str,
+    device_id: str,
+    metric: str | None = Query(
+        default=None,
+        description="Limit to one measurement, such as brightness.",
+    ),
+    limit: int = Query(
+        default=200,
+        ge=1,
+        le=1000,
+        description="Most recent points to return.",
+    ),
+):
+    result = get_device_history(
+        house_id,
+        device_id,
+        metric,
+        limit,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Device not found",
+        )
+
+    return result
+
+
+# ==================================================
 # PUT — DEVICE METADATA
 # ==================================================
 
@@ -165,6 +209,7 @@ async def get_device_by_id(
     "/{device_id}",
     response_model=DeviceResponse,
     response_model_exclude_none=True,
+    dependencies=[Depends(require_house_access)]
 )
 async def update_existing_device(
     house_id: str,
@@ -208,6 +253,7 @@ async def update_existing_device(
     "/{device_id}",
     response_model=DeviceResponse,
     response_model_exclude_none=True,
+    dependencies=[Depends(require_house_access)]
 )
 async def patch_device_state(
     house_id: str,
@@ -267,6 +313,7 @@ async def patch_device_state(
 
 @router.delete(
     "/{device_id}",
+    dependencies=[Depends(require_house_access)]
 )
 async def remove_device(
     house_id: str,
@@ -297,6 +344,7 @@ async def remove_device(
     "/{device_id}/room/{room_id}",
     response_model=DeviceResponse,
     response_model_exclude_none=True,
+    dependencies=[Depends(require_house_access)]
 )
 async def assign_device(
     house_id: str,
@@ -327,7 +375,8 @@ async def assign_device(
 @router.delete(
     "/{device_id}/room",
     response_model=DeviceResponse,
-    response_model_exclude_none=True,
+    dependencies=[Depends(require_house_access)],
+    response_model_exclude_none=True
 )
 async def unassign_device(
     house_id: str,

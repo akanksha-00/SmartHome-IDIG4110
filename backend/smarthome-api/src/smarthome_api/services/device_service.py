@@ -1,11 +1,16 @@
+import logging
+from smarthome_api.config import settings
 from smarthome_api.repositories.factory import (
+    command_repository,
     device_repository,
+    event_repository,
     house_repository,
     room_repository,
 )
 from smarthome_api.services.threshold_service import evaluate_threshold
 from smarthome_api.websocket.manager import manager
 
+logger = logging.getLogger("smarthome")
 
 # ==================================================
 # DEVICES
@@ -225,6 +230,7 @@ def update_device_state(
         device_id,
         state,
     )
+
 async def handle_device_state(
     house_id: str,
     device_id: str,
@@ -242,6 +248,29 @@ async def handle_device_state(
         house_id,
         device_id,
         state,
+    )
+
+    event_repository.record_event(
+        house_id,
+        device_id,
+        "state_change",
+        state,
+    )
+
+    event_repository.record_history(
+        house_id,
+        device_id,
+        state,
+    )
+
+    await sweep_absent_devices(house_id)
+
+    command_repository.expire_overdue()
+
+    command_repository.confirm_matching(
+        house_id,
+        device_id,
+        (updated_device or {}).get("state", {}),
     )
 
     thresholds = device.get(
@@ -291,8 +320,10 @@ async def handle_device_state(
         house_id,
         {
             "type": "device_state",
+            "house_id":house_id,
             "device_id": device_id,
             "state": state,
+            "alerts": alerts
         },
     )
 
@@ -377,6 +408,76 @@ def unassign_device_from_room(
 
 
 
+def get_device_history(
+    house_id: str,
+    device_id: str,
+    metric: str | None = None,
+    limit: int = 200,
+):
+    """
+    Recent measurements for one device.
+
+    Returns None when the device does not exist in this
+    house, so the route can answer 404 rather than an empty
+    list, which would claim the device exists and has said
+    nothing.
+    """
+
+    device = device_repository.get_by_id(
+        house_id,
+        device_id,
+    )
+
+    if device is None:
+        return None
+
+    return event_repository.history(
+        house_id,
+        device_id,
+        metric,
+        limit,
+    )
+
+
+async def sweep_absent_devices(house_id: str):
+    """
+    Notice devices that have stopped reporting.
+
+    Run when a message arrives rather than on a timer: a
+    house with no traffic at all has nothing to report
+    about anyway, and this keeps the prototype free of
+    background tasks. A device in a silent house is noticed
+    on the next message from any device in it.
+    """
+
+    gone = device_repository.mark_stale(
+        settings.device_stale_after_seconds
+    )
+
+    for device in gone:
+
+        event_repository.record_event(
+            device["house_id"],
+            device["id"],
+            "availability",
+            {"available": False},
+        )
+
+        await manager.broadcast(
+            device["house_id"],
+            {
+                "type": "device_availability",
+                "device_id": device["id"],
+                "available": False,
+                "last_seen_at": str(
+                    device.get("last_seen_at")
+                ),
+            },
+        )
+
+    return gone
+
+
 async def handle_device_event(
     house_id: str,
     device_id: str,
@@ -389,18 +490,32 @@ async def handle_device_event(
     )
 
     if device is None:
-        print(
-            f"Ignoring MQTT event: "
-            f"device '{device_id}' does not exist"
+        logger.warning(
+            "MQTT event rejected: unknown device",
+            extra={
+                "event": "mqtt_event_unknown_device",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                },
+            },
         )
         return None
 
     capabilities = device.get("capabilities", {})
 
     if event not in capabilities:
-        print(
-            f"Ignoring MQTT event: "
-            f"device '{device_id}' does not support '{event}'"
+        logger.warning(
+            "MQTT event rejected: unsupported capability",
+            extra={
+                "event": "mqtt_event_unsupported_capability",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                },
+            },
         )
         return None
 
@@ -413,11 +528,35 @@ async def handle_device_event(
             {event: value},
         )
     except ValueError as exc:
-        print(
-            f"Ignoring MQTT event: "
-            f"invalid value for '{event}': {exc}"
+        logger.warning(
+            "MQTT event rejected: invalid value",
+            extra={
+                "event": "mqtt_event_invalid_value",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "event_type": event,
+                    "reason": str(exc),
+                },
+            },
         )
         return None
+
+    event_repository.record_event(
+        house_id,
+        device_id,
+        "device_event",
+        {
+            "event": event,
+            "value": value,
+        },
+    )
+
+    event_repository.record_history(
+        house_id,
+        device_id,
+        {event: value},
+    )
 
     # Get threshold configuration
     thresholds = device.get("thresholds", {})
@@ -451,6 +590,7 @@ async def handle_device_event(
         house_id,
         {
             "type": "device_event",
+            "house_id": house_id,
             "device_id": device_id,
             "event": event,
             "value": value,

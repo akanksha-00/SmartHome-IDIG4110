@@ -1,8 +1,16 @@
 import json
-
+import logging
 from smarthome_api.mqtt.client import publish
 from smarthome_api.mqtt.topics import command_topic
-from smarthome_api.repositories.factory import device_repository
+
+
+logger = logging.getLogger("smarthome")
+
+from smarthome_api.repositories.factory import (
+    command_repository,
+    device_repository,
+)
+
 
 
 def validate_device_command(
@@ -40,19 +48,22 @@ def validate_device_command(
         if value_type == "boolean":
             if not isinstance(value, bool):
                 raise ValueError(
-                    f"'{key}' must be a boolean"
+                    f"'{key}' must be a boolean; "
+                    f"received {type(value).__name__}: {value!r}"
                 )
 
         elif value_type == "integer":
             if not isinstance(value, int) or isinstance(value, bool):
                 raise ValueError(
-                    f"'{key}' must be an integer"
+                    f"'{key}' must be an integer; "
+                    f"received {type(value).__name__}: {value!r}"
                 )
 
         elif value_type == "number":
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 raise ValueError(
-                    f"'{key}' must be a number"
+                    f"'{key}' must be a number; "
+                    f"received {type(value).__name__}: {value!r}"
                 )
 
         minimum = capability.get("min")
@@ -75,13 +86,39 @@ def send_device_command(
     house_id: str,
     device_id: str,
     state: dict,
+    request_id: str | None = None,
 ):
-    validate_device_command(
+    try:
+        validate_device_command(
+            house_id,
+            device_id,
+            state,
+        )
+    except ValueError as exc:
+        logger.warning(
+            "Device command rejected",
+            extra={
+                "event": "device_command_rejected",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "requested_fields": list(state.keys()),
+                    "reason": str(exc),
+                },
+            },
+        )
+        raise
+
+    # Recorded before publishing, so a command that is sent
+    # but never confirmed still leaves a trace. "Published"
+    # and "executed" are different facts and the status
+    # keeps them apart.
+    command = command_repository.create(
         house_id,
         device_id,
         state,
+        request_id=request_id,
     )
-
     topic = command_topic(
         house_id,
         device_id,
@@ -91,9 +128,40 @@ def send_device_command(
         "state": state
     })
 
-    publish(
-        topic,
-        payload,
+    try:
+        publish(topic, payload)
+
+    except Exception:
+        if command is not None:
+            command_repository.mark_failed(
+                command["id"],
+                "publish_failed",
+            )
+
+        logger.exception(
+            "Failed to publish device command",
+            extra={
+                "event": "device_command_publish_failed",
+                "details": {
+                    "house_id": house_id,
+                    "device_id": device_id,
+                    "requested_fields": list(state.keys()),
+                },
+            },
+        )
+        raise
+
+    if command is not None:
+        command_repository.mark_dispatched(command["id"])
+    # Record what was asked for. The device has not
+    # answered yet, so the twin is knowingly out of sync
+    # until a matching report arrives over MQTT. This is
+    # what lets the interface say "turning on" rather than
+    # claiming the device already obeyed.
+    device_repository.set_desired(
+        house_id,
+        device_id,
+        state,
     )
 
     return {
@@ -101,4 +169,8 @@ def send_device_command(
         "device_id": device_id,
         "topic": topic,
         "state": state,
+        "command_id": command["id"] if command else None,
+        "request_id": (
+            command["request_id"] if command else None
+        ),
     }

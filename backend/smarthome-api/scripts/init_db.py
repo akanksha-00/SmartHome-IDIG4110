@@ -16,6 +16,7 @@ import asyncio
 from pymongo import ASCENDING, DESCENDING, AsyncMongoClient
 
 from smarthome_api.config import settings
+from smarthome_api.db.validators import VALIDATORS
 
 
 # Raw readings are kept for 90 days. Aggregates and
@@ -55,6 +56,28 @@ async def main() -> None:
         print("state_history already exists, left alone")
 
     # ==================================================
+    # VALIDATORS
+    # ==================================================
+
+    for name, validator in VALIDATORS.items():
+
+        if name not in existing:
+            await db.create_collection(name)
+
+        # "moderate" leaves documents that already break the
+        # rules alone, so applying this to a running database
+        # cannot make existing records unwritable.
+        await db.command(
+            "collMod",
+            name,
+            validator=validator,
+            validationLevel="moderate",
+            validationAction="error",
+        )
+
+    print(f"validators applied to {len(VALIDATORS)} collections")
+
+    # ==================================================
     # INDEXES
     # ==================================================
 
@@ -82,6 +105,25 @@ async def main() -> None:
     await db.device_state.create_index(
         [("house_id", ASCENDING), ("in_sync", ASCENDING)],
         name="idx_state_diverging",
+    )
+
+    # The unique request_id is the whole duplicate
+    # suppression mechanism: a repeated request fails to
+    # insert instead of commanding the device twice.
+    await db.commands.create_index(
+        [("request_id", ASCENDING)],
+        unique=True,
+        name="uq_request_id",
+    )
+
+    await db.commands.create_index(
+        [("house_id", ASCENDING), ("created_at", DESCENDING)],
+        name="idx_commands_by_house",
+    )
+
+    await db.commands.create_index(
+        [("status", ASCENDING), ("expires_at", ASCENDING)],
+        name="idx_expiry_sweep",
     )
 
     await db.events.create_index(

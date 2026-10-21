@@ -22,7 +22,7 @@
     },
     "state": {
       "power": true,
-      "brightness": 0
+      "brightness": 53
     },
     "status": {
       "operational": true
@@ -53,7 +53,7 @@
       }
     },
     "state": {
-      "power": false,
+      "power": true,
       "speed": 5,
       "oscillation": false
     },
