@@ -30,46 +30,6 @@ Iterable<SensorReading> decodeTestMessage(Map<String, dynamic> json) {
 }
 
 void main() {
-  test(
-      'the first frame authenticates and reconnecting uses the refreshed token',
-      () async {
-    final channels = [FakeChannel(), FakeChannel()];
-    var connections = 0;
-    String? token = 'first';
-    final socket = WebSocketService(
-      endpoint: 'wss://backend.example/api/v1/houses/house-1/ws',
-      accessToken: () => token,
-      connector: (_) => channels[connections++],
-    );
-    addTearDown(socket.dispose);
-    final first = channels[0].outgoing.stream.first;
-    await socket.connect();
-    expect(
-        jsonDecode(await first as String), {'type': 'auth', 'token': 'first'});
-    await socket.disconnect();
-    token = 'refreshed';
-    final second = channels[1].outgoing.stream.first;
-    await socket.connect();
-    expect(jsonDecode(await second as String),
-        {'type': 'auth', 'token': 'refreshed'});
-  });
-
-  test('a missing required session prevents a WebSocket connection', () async {
-    var connections = 0;
-    final socket = WebSocketService(
-      endpoint: 'wss://backend.example/ws',
-      accessToken: () => null,
-      connector: (_) {
-        connections++;
-        return FakeChannel();
-      },
-    );
-    addTearDown(socket.dispose);
-    await expectLater(socket.connect(), throwsStateError);
-    expect(connections, 0);
-    expect(socket.state, SocketConnectionState.disconnected);
-  });
-
   test('missing and invalid URLs do not open connections', () async {
     var calls = 0;
     for (final url in [null, '', 'https://example.com', 'wss:/missing-host']) {

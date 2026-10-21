@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:smart_home/src/config/api_endpoints.dart';
-import 'package:smart_home/src/logging/app_log.dart';
 import 'package:web_socket_channel/status.dart' as socket_status;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -11,17 +10,15 @@ enum SocketConnectionState { disconnected, connecting, connected }
 typedef SocketConnector = WebSocketChannel Function(Uri uri);
 
 /// Create one instance per session/house and share it between stream consumers.
-/// Authenticates with the first frame used by the supplied backend test client.
+/// This class handles transport only, without assuming a subscription protocol.
 class WebSocketService {
   WebSocketService({
     this.endpoint = ApiEndpoints.sensorWebSocket,
     SocketConnector? connector,
-    this.accessToken,
     this.connectionTimeout = const Duration(seconds: 15),
   }) : _connector = connector ?? WebSocketChannel.connect;
 
   final String? endpoint;
-  final String? Function()? accessToken;
   final SocketConnector _connector;
   final Duration connectionTimeout;
   final _messages = StreamController<Map<String, dynamic>>.broadcast();
@@ -68,11 +65,6 @@ class WebSocketService {
           'WebSocket URL must use ws:// or wss:// and have a host');
     }
 
-    final token = accessToken?.call();
-    if (accessToken != null && (token == null || token.isEmpty)) {
-      throw StateError('Cannot connect without a signed-in session');
-    }
-
     final generation = ++_generation;
     _setState(SocketConnectionState.connecting);
     try {
@@ -84,18 +76,11 @@ class WebSocketService {
         },
         onError: (Object error, StackTrace stackTrace) {
           if (!_disposed && generation == _generation) {
-            AppLog.error('WebSocket',
-                'Transport error | endpoint=${AppLog.endpoint(endpoint)}',
-                error: error, stackTrace: stackTrace);
             _messages.addError(error, stackTrace);
           }
         },
         onDone: () {
           if (!_disposed && generation == _generation) {
-            AppLog.warning(
-                'WebSocket',
-                'Connection closed by peer | code=${channel.closeCode ?? 'none'} '
-                    '| endpoint=${AppLog.endpoint(endpoint)}');
             _channel = null;
             _subscription = null;
             _setState(SocketConnectionState.disconnected);
@@ -108,10 +93,6 @@ class WebSocketService {
           !identical(_channel, channel)) {
         throw StateError('WebSocket connection was cancelled or closed');
       }
-      if (token != null) {
-        channel.sink.add(jsonEncode({'type': 'auth', 'token': token}));
-      }
-      // Connectivity is transport state; the protocol has no verified auth ACK.
       _setState(SocketConnectionState.connected);
     } catch (_) {
       if (generation == _generation) await disconnect();
@@ -136,8 +117,6 @@ class WebSocketService {
       _messages.add(json);
     } catch (error, stackTrace) {
       // Report a malformed frame without discarding later valid messages.
-      AppLog.warning('WebSocket', 'Ignored malformed JSON frame',
-          error: error, stackTrace: stackTrace);
       _messages.addError(error, stackTrace);
     }
   }
@@ -168,11 +147,7 @@ class WebSocketService {
             .close(socket_status.normalClosure)
             .timeout(connectionTimeout);
       } catch (error, stackTrace) {
-        if (!_disposed) {
-          AppLog.warning('WebSocket', 'Could not close connection cleanly',
-              error: error, stackTrace: stackTrace);
-          _messages.addError(error, stackTrace);
-        }
+        if (!_disposed) _messages.addError(error, stackTrace);
       }
     }
   }
@@ -180,10 +155,6 @@ class WebSocketService {
   void _setState(SocketConnectionState value) {
     if (_state == value) return;
     _state = value;
-    AppLog.info(
-        'WebSocket',
-        'Connection ${value.name} '
-            '| endpoint=${AppLog.endpoint(endpoint)}');
     if (!_states.isClosed) _states.add(value);
   }
 

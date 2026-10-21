@@ -1,6 +1,5 @@
 [
   {
-    "owner_id":"ffda913e-ac4b-4f8a-8af3-31b90a5103f3",
     "id": "house-001",
     "name": "My Second house",
     "address": "string",
@@ -8,7 +7,6 @@
     "city": "string"
   },
   {
-    "owner_id":"c3110fc5-59a4-4555-a970-10b9b30e8769",
     "id": "house-002",
     "name": "House2",
     "address": "Oslo 276",

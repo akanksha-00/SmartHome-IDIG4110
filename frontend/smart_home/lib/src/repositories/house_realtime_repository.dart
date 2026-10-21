@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:smart_home/src/logging/app_log.dart';
 import 'package:smart_home/src/models/devices/device_message.dart';
 import 'package:smart_home/src/services/web_socket_service.dart';
 
@@ -24,8 +23,6 @@ class HouseRealtimeRepository {
         final message = DeviceMessage.fromJson(json);
         if (message != null) _messages.add(message);
       } catch (error, stack) {
-        AppLog.warning('WebSocket', 'Ignored invalid house message',
-            error: error, stackTrace: stack);
         _messages.addError(error, stack);
       }
     },
@@ -70,9 +67,6 @@ class HouseRealtimeRepository {
       await socket.connect();
     } catch (error, stack) {
       if (!_disposed) {
-        AppLog.error('WebSocket',
-            'Could not connect | endpoint=${AppLog.endpoint(socket.endpoint)}',
-            error: error, stackTrace: stack);
         _messages.addError(error, stack);
         _scheduleRetry();
       }
@@ -83,10 +77,6 @@ class HouseRealtimeRepository {
     if (!_started || _disposed || _retry != null) return;
     final delay = retryDelays[_attempt.clamp(0, retryDelays.length - 1)];
     _attempt++;
-    AppLog.warning(
-        'WebSocket',
-        'Reconnect scheduled | attempt=$_attempt '
-            '| delay_ms=${delay.inMilliseconds}');
     _retry = Timer(delay, () {
       _retry = null;
       if (!_disposed) unawaited(_connect());

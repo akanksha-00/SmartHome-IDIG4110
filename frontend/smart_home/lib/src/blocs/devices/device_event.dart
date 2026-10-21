@@ -13,7 +13,6 @@ final class DevicesRequested extends DeviceEvent {
   final bool force;
 }
 
-/// Edited values only; DeviceBloc merges them into the full command state.
 final class DeviceStateUpdateRequested extends DeviceEvent {
   DeviceStateUpdateRequested(
       {required this.id, required Map<String, Object?> updates})
@@ -46,4 +45,8 @@ final class DeviceDiscovered extends DeviceEvent {
   const DeviceDiscovered(this.device, this.messages);
   final ApiDevice device;
   final List<DeviceMessage> messages;
+}
+
+final class DeviceAlertsRead extends DeviceEvent {
+  const DeviceAlertsRead();
 }

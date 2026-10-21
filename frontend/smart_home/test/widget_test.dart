@@ -9,7 +9,6 @@ import 'package:smart_home/src/blocs/devices/device_bloc.dart';
 import 'package:smart_home/src/widgets/device_startup_gate.dart';
 
 import 'helpers/device_test_data.dart';
-import 'helpers/auth_test_data.dart';
 
 Widget startupHarness(DeviceBloc bloc) => BlocProvider.value(
       value: bloc,
@@ -79,10 +78,7 @@ void main() {
       (tester) async {
     final response = Completer<http.Response>();
     final source = testDeviceBloc((_) => response.future);
-    await tester.pumpWidget(MyApp(
-        authRepository: testAuthRepository(),
-        deviceRepository: source.repository));
-    await signInAsDummyUser(tester);
+    await tester.pumpWidget(MyApp(deviceRepository: source.repository));
     expect(find.text('Loading devices…'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
     response.complete(jsonResponse([]));

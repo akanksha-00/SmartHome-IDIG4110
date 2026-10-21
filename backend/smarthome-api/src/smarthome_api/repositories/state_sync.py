@@ -6,6 +6,7 @@ was last requested. They are compared here so both storage
 backends answer the question the same way.
 """
 
+
 def is_in_sync(
     reported: dict | None,
     desired: dict | None,

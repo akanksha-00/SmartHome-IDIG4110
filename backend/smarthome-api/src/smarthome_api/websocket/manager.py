@@ -9,11 +9,8 @@ class ConnectionManager:
         self,
         house_id: str,
         websocket: WebSocket,
-        accept: bool = True,
     ):
-        # Accept the connection unless the route already accepted it.
-        if accept:
-            await websocket.accept()
+        await websocket.accept()
 
         if house_id not in self.connections:
             self.connections[house_id] = []
@@ -21,7 +18,8 @@ class ConnectionManager:
         self.connections[house_id].append(websocket)
 
         print(
-            f"WebSocket connected: house={house_id}, "
+            f"WebSocket connected: "
+            f"house={house_id}, "
             f"clients={len(self.connections[house_id])}"
         )
 
@@ -41,17 +39,24 @@ class ConnectionManager:
         if not connections:
             del self.connections[house_id]
 
-        print(f"WebSocket disconnected: house={house_id}")
+        print(
+            f"WebSocket disconnected: "
+            f"house={house_id}"
+        )
 
     async def broadcast(
         self,
         house_id: str,
         message: dict,
     ):
-        connections = self.connections.get(house_id, [])
+        connections = self.connections.get(
+            house_id,
+            [],
+        )
 
         print(
-            f"Broadcasting to {len(connections)} WebSocket client(s): "
+            f"Broadcasting to "
+            f"{len(connections)} WebSocket client(s): "
             f"house={house_id}"
         )
 
@@ -61,14 +66,23 @@ class ConnectionManager:
             try:
                 await websocket.send_json(message)
 
-                print(f"WebSocket message sent: {message}")
+                print(
+                    f"WebSocket message sent: "
+                    f"{message}"
+                )
 
             except Exception as exc:
-                print(f"WebSocket send failed: {exc}")
+                print(
+                    f"WebSocket send failed: "
+                    f"{exc}"
+                )
                 disconnected.append(websocket)
 
         for websocket in disconnected:
-            self.disconnect(house_id, websocket)
+            self.disconnect(
+                house_id,
+                websocket,
+            )
 
 
 manager = ConnectionManager()

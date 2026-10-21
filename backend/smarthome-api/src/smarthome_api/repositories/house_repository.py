@@ -42,45 +42,27 @@ class HouseRepository:
     # ==================================================
     # READ
     # ==================================================
-    # ==================================================
-    # READ
-    # ==================================================
 
-    def get_all(
-        self,
-        owner_id: str | None = None,
-    ):
+    def get_all(self):
+
         houses = self._load()
-
-        if owner_id is not None:
-            houses = [
-                house for house in houses
-                if house.get("owner_id") == owner_id
-            ]
 
         return houses
 
     def get_by_id(
         self,
         house_id: str,
-        owner_id: str | None = None,
     ):
+
         houses = self._load()
 
         for house in houses:
-            if house.get("id") != house_id:
-                continue
 
-            # If an owner is specified, verify ownership.
-            if (
-                owner_id is not None
-                and house.get("owner_id") != owner_id
-            ):
-                return None
-
-            return house
+            if house.get("id") == house_id:
+                return house
 
         return None
+
     # ==================================================
     # CREATE
     # ==================================================
@@ -129,7 +111,7 @@ class HouseRepository:
             update_data = {
                 key: value
                 for key, value in data.items()
-                if key not in {"id", "owner_id"}
+                if key != "id"
             }
 
             house.update(update_data)

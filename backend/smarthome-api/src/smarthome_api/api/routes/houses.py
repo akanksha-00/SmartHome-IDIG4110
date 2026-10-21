@@ -1,8 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from smarthome_api.auth import (
-    get_current_user_id,
-    get_current_app_user,
-)
+from fastapi import APIRouter, HTTPException
+
 from smarthome_api.schemas.house import (
     HouseCreate,
     HouseResponse,
@@ -32,14 +29,9 @@ router = APIRouter(
     response_model=list[HouseResponse],
     response_model_exclude_none=True,
 )
-async def get_houses(
-    current_user: dict = Depends(get_current_app_user),
-):
-    if current_user["role"] == "platform_admin":
-        return get_all_houses()
+async def get_houses():
 
-    return get_all_houses(owner_id=current_user["id"])
-
+    return get_all_houses()
 
 
 @router.get(
@@ -49,15 +41,9 @@ async def get_houses(
 )
 async def get_house_by_id(
     house_id: str,
-    current_user: dict = Depends(get_current_app_user),
 ):
-    if current_user["role"] == "platform_admin":
-        house = get_house(house_id)
-    else:
-        house = get_house(
-            house_id,
-            owner_id=current_user["id"],
-        )
+
+    house = get_house(house_id)
 
     if house is None:
         raise HTTPException(
@@ -67,6 +53,7 @@ async def get_house_by_id(
 
     return house
 
+
 @router.post(
     "",
     response_model=HouseResponse,
@@ -75,12 +62,13 @@ async def get_house_by_id(
 )
 async def create_new_house(
     house: HouseCreate,
-    user_id: str = Depends(get_current_user_id),
 ):
-    house_data = house.model_dump(exclude_none=True)
-    house_data["owner_id"] = user_id
 
-    result = create_house(house_data)
+    result = create_house(
+        house.model_dump(
+            exclude_none=True
+        )
+    )
 
     if result is None:
         raise HTTPException(
@@ -99,54 +87,43 @@ async def create_new_house(
 async def update_existing_house(
     house_id: str,
     house: HouseUpdate,
-    current_user: dict = Depends(get_current_app_user),
 ):
-    if current_user["role"] == "platform_admin":
-        existing_house = get_house(house_id)
-    else:
-        existing_house = get_house(
-            house_id,
-            owner_id=current_user["id"],
-        )
-
-    if existing_house is None:
-        raise HTTPException(
-            status_code=404,
-            detail="House not found",
-        )
 
     result = update_house(
         house_id,
-        house.model_dump(exclude_none=True),
+        house.model_dump(
+            exclude_none=True
+        ),
     )
 
-    return result
-@router.delete("/{house_id}")
-async def remove_house(
-    house_id: str,
-    current_user: dict = Depends(get_current_app_user),
-):
-    if current_user["role"] == "platform_admin":
-        existing_house = get_house(house_id)
-    else:
-        existing_house = get_house(
-            house_id,
-            owner_id=current_user["id"],
-        )
-
-    if existing_house is None:
+    if result is None:
         raise HTTPException(
             status_code=404,
             detail="House not found",
         )
 
+    return result
+
+
+@router.delete(
+    "/{house_id}",
+)
+async def remove_house(
+    house_id: str,
+):
+
     result = delete_house(house_id)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="House not found",
+        )
 
     return {
         "message": "House deleted",
         "house": result,
     }
-
 @router.patch(
     "/{house_id}",
     response_model=HouseResponse,
@@ -155,24 +132,19 @@ async def remove_house(
 async def patch_house(
     house_id: str,
     house: HouseUpdate,
-    current_user: dict = Depends(get_current_app_user),
 ):
-    if current_user["role"] == "platform_admin":
-        existing_house = get_house(house_id)
-    else:
-        existing_house = get_house(
-            house_id,
-            owner_id=current_user["id"],
-        )
 
-    if existing_house is None:
+    result = update_house(
+        house_id,
+        house.model_dump(
+            exclude_none=True
+        ),
+    )
+
+    if result is None:
         raise HTTPException(
             status_code=404,
             detail="House not found",
         )
 
-    result = update_house(
-        house_id,
-        house.model_dump(exclude_none=True),
-    )
     return result
