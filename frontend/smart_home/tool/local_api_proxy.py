@@ -8,15 +8,17 @@ import json
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
+import os
 
 
 LOCAL_ORIGIN = re.compile(r"http://(?:localhost|127\.0\.0\.1)(?::\d+)?")
 METHODS = "GET, HEAD, POST, PUT, PATCH, DELETE"
 HEADERS = "Accept, Content-Type, Authorization"
-
+PROXY_HOST = os.getenv("PROXY_HOST", "127.0.0.1")
+BACKEND_HOST = os.getenv("BACKEND_HOST", "127.0.0.1")
 BACKEND_PORT = 8000
 PROXY_PORT = 8001
-LOCALHOST = "127.0.0.1"
+
 
 class ApiProxyHandler(BaseHTTPRequestHandler):
     def _send(self, status, body=b"", content_type="application/json"):
@@ -68,16 +70,19 @@ class ApiProxyHandler(BaseHTTPRequestHandler):
             self._error(413, "Request body is too large")
             return
         body = self.rfile.read(length) if length else None
-        headers = {name: self.headers[name] for name in HEADERS.split(", ")
-                   if name in self.headers}
-        connection = http.client.HTTPConnection(LOCALHOST, BACKEND_PORT, timeout=20)
+        headers = {
+            name: self.headers[name]
+            for name in HEADERS.split(", ")
+            if name in self.headers
+        }
+        connection = http.client.HTTPConnection(BACKEND_HOST, BACKEND_PORT, timeout=20)
         try:
             connection.request(self.command, self.path, body=body, headers=headers)
             response = connection.getresponse()
             payload = response.read()
             content_type = response.getheader("Content-Type", "application/json")
         except (OSError, http.client.HTTPException):
-            self._error(502, "Cannot reach the backend. Check the SSH tunnel on port 8000.")
+            self._error(502, "Cannot reach the backend.")
             return
         finally:
             connection.close()
@@ -92,8 +97,12 @@ class ApiProxyHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer((LOCALHOST, PROXY_PORT), ApiProxyHandler)
-    print(f"Local API proxy: http://{LOCALHOST}:{PROXY_PORT} -> SSH tunnel on port {BACKEND_PORT}", flush=True)
+    server = ThreadingHTTPServer((PROXY_HOST, PROXY_PORT), ApiProxyHandler)
+    print(
+        f"API proxy: http://{PROXY_HOST}:{PROXY_PORT}"
+        f" -> http://{BACKEND_HOST}:{BACKEND_PORT}",
+        flush=True,
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
