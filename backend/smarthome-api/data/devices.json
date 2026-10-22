@@ -288,7 +288,7 @@
     "name": "Smoke Detector",
     "type": "smoke_detector",
     "house_id": "house-001",
-    "room_id": "bedroom",
+    "room_id": "kitchen",
     "capabilities": {
       "smoke": {
         "type": "boolean"
