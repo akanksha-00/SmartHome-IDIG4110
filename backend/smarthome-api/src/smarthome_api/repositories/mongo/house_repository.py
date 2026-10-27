@@ -23,37 +23,100 @@ class HouseRepository:
     # ==================================================
     # READ
     # ==================================================
-def get_all(
-    self,
-    owner_id: str | None = None,
-    provider_id: str | None = None,
-):
-    query = {}
 
-    if owner_id is not None:
-        query["owner_id"] = owner_id
+    def get_all(
+        self,
+        owner_id: str | None = None,
+        provider_id: str | None = None,
+    ):
+        query = {}
 
-    if provider_id is not None:
-        query["provider_id"] = provider_id
+        if owner_id is not None:
+            query["owner_id"] = owner_id
 
-    return [
-        to_api(document)
-        for document in self.collection.find(query)
-    ]
+        if provider_id is not None:
+            query["provider_id"] = provider_id
 
-def get_by_id(
-    self,
-    house_id: str,
-    owner_id: str | None = None,
-    provider_id: str | None = None,
-):
-    query = {"_id": house_id}
+        return [
+            to_api(document)
+            for document in self.collection.find(query)
+        ]
 
-    if owner_id is not None:
-        query["owner_id"] = owner_id
+    def get_by_id(
+        self,
+        house_id: str,
+        owner_id: str | None = None,
+        provider_id: str | None = None,
+    ):
+        query = {"_id": house_id}
 
-    if provider_id is not None:
-        query["provider_id"] = provider_id
+        if owner_id is not None:
+            query["owner_id"] = owner_id
 
-    document = self.collection.find_one(query)
-    return to_api(document)
+        if provider_id is not None:
+            query["provider_id"] = provider_id
+
+        return to_api(self.collection.find_one(query))
+
+    # ==================================================
+    # CREATE
+    # ==================================================
+
+    def create(
+        self,
+        house: dict,
+    ):
+
+        document = to_document(house)
+
+        # House IDs must be unique. The _id index enforces
+        # this, so a duplicate is reported rather than
+        # silently overwriting.
+        if self.collection.find_one({"_id": document["_id"]}):
+            return None
+
+        self.collection.insert_one(document)
+
+        return to_api(document)
+
+    # ==================================================
+    # UPDATE
+    # ==================================================
+
+    def update(
+        self,
+        house_id: str,
+        data: dict,
+    ):
+
+        # Identity and ownership are not changed here.
+        update_data = strip_identity(
+            data,
+            also={"owner_id"},
+        )
+
+        if not update_data:
+            return self.get_by_id(house_id)
+
+        return to_api(
+            self.collection.find_one_and_update(
+                {"_id": house_id},
+                {"$set": update_data},
+                return_document=ReturnDocument.AFTER,
+            )
+        )
+
+    # ==================================================
+    # DELETE
+    # ==================================================
+
+    def delete(
+        self,
+        house_id: str,
+    ):
+
+        return to_api(
+            self.collection.find_one_and_delete(
+                {"_id": house_id}
+            )
+        )

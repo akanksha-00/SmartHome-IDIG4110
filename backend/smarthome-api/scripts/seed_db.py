@@ -25,6 +25,7 @@ SOURCES = {
     "houses.json": "houses",
     "rooms.json": "rooms",
     "devices.json": "devices",
+    "users.json": "users",
 }
 
 

@@ -60,6 +60,15 @@ def capture() -> dict:
 
     client = TestClient(app)
 
+    # Most routes now require a Supabase token. Without one
+    # every call returns 401 on both backends, and the
+    # comparison would report them as identical while
+    # actually comparing nothing.
+    token = os.environ.get("API_TOKEN")
+
+    if token:
+        client.headers["Authorization"] = f"Bearer {token}"
+
     results = {}
 
     # The OpenAPI schema is a stable way to enumerate
@@ -99,6 +108,35 @@ def capture() -> dict:
         }
 
     return results
+
+
+def warn_if_unauthenticated(results: dict) -> None:
+    """
+    Routes that were rejected were not really compared.
+
+    Two 401s are identical, so without a token this script
+    reports success while having tested nothing.
+    """
+
+    rejected = [
+        path
+        for path, result in results.items()
+        if isinstance(result, dict)
+        and result.get("status") in (401, 403)
+    ]
+
+    if not rejected:
+        return
+
+    print(
+        f"WARNING: {len(rejected)} of {len(results)} routes "
+        f"were rejected and so were not really compared."
+    )
+    print(
+        "         Set API_TOKEN to a valid bearer token to "
+        "compare real responses."
+    )
+    print()
 
 
 def run_backend(backend: str) -> dict:
@@ -174,6 +212,8 @@ def main() -> None:
 
     json_results = run_backend("json")
     mongo_results = run_backend("mongo")
+
+    warn_if_unauthenticated(json_results)
 
     paths = sorted(
         set(json_results) | set(mongo_results)

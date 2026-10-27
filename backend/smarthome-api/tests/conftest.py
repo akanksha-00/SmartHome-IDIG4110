@@ -119,3 +119,10 @@ def lamp(house, devices):
             "state": {"power": False, "brightness": 0},
         }
     )
+
+
+@pytest.fixture
+def users():
+    from smarthome_api.repositories.mongo import UserRepository
+
+    return UserRepository()

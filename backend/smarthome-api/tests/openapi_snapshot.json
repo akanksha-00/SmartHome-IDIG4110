@@ -148,6 +148,7 @@
         "city": "null|string",
         "id": "string",
         "name": "string",
+        "owner_id": "null|string",
         "postal_code": "null|string"
       },
       "required": [
