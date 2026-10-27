@@ -21,6 +21,7 @@ if settings.storage_backend == "mongo":
         EventRepository,
         HouseRepository,
         RoomRepository,
+        UserRepository,
     )
 
 else:

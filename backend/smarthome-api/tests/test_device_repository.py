@@ -202,3 +202,23 @@ def test_history_is_scoped_to_the_house(events, lamp):
     )
 
     assert events.history("house-other", "lamp-test") == []
+
+
+def test_houses_can_be_scoped_to_an_owner(house, database):
+    """
+    Houses gained owner scoping when authentication was
+    added. Both backends must apply it, or a user would see
+    another person's house depending on configuration.
+    """
+
+    from smarthome_api.repositories.mongo import HouseRepository
+
+    houses = HouseRepository()
+    database.houses.update_one(
+        {"_id": "house-test"},
+        {"$set": {"owner_id": "owner-a"}},
+    )
+
+    assert houses.get_all(owner_id="owner-a")
+    assert houses.get_all(owner_id="owner-b") == []
+    assert houses.get_by_id("house-test", owner_id="owner-b") is None
